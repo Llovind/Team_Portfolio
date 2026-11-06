@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anggota tim | Team Profile Showcase</title>
+
+  <!-- Font & CSS sama dengan halaman lain supaya tampilannya padu -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- defer = script dijalankan setelah HTML selesai dibaca, dengan urutan tetap:
+       api.js dulu (fungsi-fungsi fetch), baru dashboard.js (yang memakainya) -->
+  <script src="js/api.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
+</head>
+<!-- class "page-enter" → halaman dibuka dalam keadaan redup lalu terang kembali -->
+<body class="page-enter">
+
+  <!-- ================= HEADER (menempel di atas saat di-scroll) ================= -->
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <!-- Klik nama situs → kembali ke halaman sambutan -->
+      <a class="brand" href="index.html">Team Profile Showcase</a>
+      <!-- Kelola anggota: tombol tambah ada di sini, tombol hapus ada di halaman profil -->
+      <button type="button" class="btn btn-outline" id="openAddBtn">Tambah anggota</button>
+    </div>
+  </header>
+
+  <!-- ================= DAFTAR PROFIL SINGKAT (GET /members) ================= -->
+  <main class="wrap roster">
+    <div class="roster-head">
+      <h1 class="roster-title">Anggota tim</h1>
+      <span class="roster-count" id="rosterCount"></span>
+      <!-- Status koneksi ke backend, di-update oleh dashboard.js -->
+      <p class="status" id="status" role="status">
+        <span class="status-dot"></span>
+        <span id="statusText">Menghubungkan ke backend…</span>
+      </p>
+    </div>
+
+    <!-- Pesan konfirmasi singkat (misal setelah menambah/menghapus anggota) -->
+    <p class="flash" id="flash" role="status" hidden></p>
+    <!-- Pesan saat data kosong / backend belum aktif -->
+    <p class="roster-note" id="rosterNote">Memuat anggota…</p>
+
+    <!-- Baris-baris anggota diisi oleh dashboard.js.
+         Garis kuning di kiri (seperti kabel fiber) memanjang mengikuti scroll. -->
+    <ul class="roster-list" id="rosterList"></ul>
+  </main>
+
+  <!-- ================= JENDELA TAMBAH ANGGOTA (POST /members) =================
+       <dialog> adalah elemen bawaan HTML untuk jendela pop-up, tanpa library apa pun -->
+  <dialog class="dialog" id="addDialog" aria-labelledby="addTitle">
+    <!-- novalidate: validasi dilakukan sendiri di JS supaya pesannya seragam -->
+    <form id="addForm" novalidate>
+      <h2 class="dialog-title" id="addTitle">Tambah anggota</h2>
+      <p class="dialog-text">Kolom bertanda * wajib diisi.</p>
+
+      <label for="nameInput">Nama lengkap *</label>
+      <input id="nameInput" type="text" maxlength="80" autocomplete="off">
+
+      <label for="nimInput">NIM *</label>
+      <input id="nimInput" type="text" inputmode="numeric" maxlength="20" autocomplete="off">
+
+      <label for="roleInput">Peran di tim *</label>
+      <!-- list="roleOptions" → muncul saran pilihan, tapi tetap boleh diketik bebas -->
+      <input id="roleInput" type="text" list="roleOptions" maxlength="40" autocomplete="off">
+      <datalist id="roleOptions">
+        <option value="Frontend">
+        <option value="Backend">
+        <option value="DevOps / CI-CD">
+        <option value="Dokumentasi">
+      </datalist>
+
+      <label for="skillsInput">Keahlian *</label>
+      <input id="skillsInput" type="text" maxlength="200" autocomplete="off">
+      <p class="hint">Pisahkan dengan koma, contoh: HTML, Docker, Jenkins</p>
+
+      <label for="bioInput">Tentang</label>
+      <textarea id="bioInput" rows="3" maxlength="400"></textarea>
+      <p class="hint">Dua atau tiga kalimat tentang dirimu</p>
+
+      <label for="emailInput">Email</label>
+      <input id="emailInput" type="email" maxlength="120" autocomplete="off">
+
+      <label for="githubInput">Username GitHub</label>
+      <input id="githubInput" type="text" maxlength="60" autocomplete="off">
+      <p class="hint">Dipakai sebagai foto profil kalau belum ada foto di folder assets/foto</p>
+
+      <!-- role="alert" → pesan error langsung dibacakan pembaca layar -->
+      <p class="form-msg" id="formMsg" role="alert"></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-quiet" id="cancelAddBtn">Batal</button>
+        <button type="submit" class="btn btn-primary" id="saveBtn">Simpan anggota</button>
+      </div>
+    </form>
+  </dialog>
+
+</body>
+</html>

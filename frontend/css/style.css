@@ -1,0 +1,570 @@
+/* =====================================================================
+   style.css — dipakai bersama oleh semua halaman:
+   index.html (sambutan), anggota.html (daftar tim), profile.html (profil)
+
+   Palet warna diambil dari perangkat jaringan telekomunikasi:
+   - abu-abu panel rak  → latar
+   - biru konektor SC   → tombol & tautan
+   - kuning patch cord single-mode → garis "kabel" & penanda aktif
+
+   Font: Plus Jakarta Sans, buatan desainer Indonesia, jelas dibaca
+   di ukuran kecil maupun besar.
+   ===================================================================== */
+
+/* ---------- 1. Variabel (ubah warna/ukuran cukup di sini) ---------- */
+:root {
+  --paper: #ECEFF2;      /* latar: abu-abu panel rak */
+  --surface: #F8F9FB;    /* latar jendela pop-up */
+  --ink: #18212C;        /* teks utama */
+  --muted: #56616E;      /* teks pendukung */
+  --rule: #CBD2DA;       /* garis pemisah & kabel "belum teraliri" */
+  --blue: #2457A5;       /* biru konektor: tombol & tautan */
+  --blue-dark: #1B4382;
+  --yellow: #F2BE22;     /* kuning patch cord: kabel & penanda aktif */
+  --red: #B42318;        /* aksi hapus & error */
+  --green: #2F8F5B;      /* status terhubung & pesan sukses */
+
+  --font: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --wrap: 1200px;        /* lebar maksimum konten (lebar layar laptop) */
+  --header-h: 72px;      /* tinggi header */
+  --node: 64px;          /* ukuran foto di daftar anggota */
+}
+
+/* ---------- 2. Dasar ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 1.125rem;       /* 18px: ukuran nyaman untuk dibaca di layar */
+  line-height: 1.65;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+/* Elemen ber-atribut hidden harus benar-benar tersembunyi,
+   walaupun class-nya punya aturan display sendiri (misal display: grid) */
+[hidden] { display: none !important; }
+
+a { color: var(--blue); }
+
+/* Garis fokus saat navigasi pakai keyboard (Tab) */
+:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+/* Lebar konten di tengah halaman, dengan jarak kiri-kanan yang ikut membesar di layar lebar */
+.wrap {
+  width: min(var(--wrap), 100% - 2 * clamp(20px, 5vw, 64px));
+  margin-inline: auto;
+}
+
+/* ---------- 3. Tombol ---------- */
+.btn {
+  display: inline-block;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 11px 20px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-large { font-size: 1.0625rem; padding: 14px 28px; }
+
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
+
+.btn-outline { background: transparent; color: var(--blue); border-color: var(--blue); }
+.btn-outline:hover { background: var(--blue); color: #fff; }
+
+.btn-quiet { background: transparent; color: var(--ink); }
+.btn-quiet:hover { background: rgba(24, 33, 44, 0.07); }
+
+.btn-danger { background: transparent; color: var(--red); border-color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+
+/* ---------- 4. Header ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(236, 239, 242, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--header-h);
+}
+.brand,
+.back-link {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+.brand:hover,
+.back-link:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 4px; }
+
+/* ---------- 5. Avatar (foto lokal / GitHub / inisial) ---------- */
+.avatar {
+  position: relative;
+  z-index: 1;                 /* selalu di atas garis kabel */
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #D9E2EE;
+  color: var(--blue);
+  font-weight: 700;
+}
+/* Foto ditumpuk di atas inisial; kalau foto gagal dimuat, inisial tetap terlihat */
+.avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;          /* foto dipotong rapi jadi bulat, tidak gepeng */
+  opacity: 0;                 /* disembunyikan dulu sampai selesai dimuat... */
+  transition: opacity 0.3s ease;
+}
+.avatar img.is-loaded { opacity: 1; }  /* ...lalu muncul halus */
+
+/* ---------- 6. Efek redup saat pindah halaman ----------
+   Lapisan gelap transparan menutupi seluruh layar.
+   Normalnya tidak terlihat (opacity 0) dan tidak menghalangi klik (pointer-events: none). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--ink);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+/* Saat profil diklik, dashboard.js menambahkan class ini → layar meredup */
+body.is-leaving::after { opacity: 0.35; }
+
+/* Halaman ber-class "page-enter" dibuka dalam keadaan redup lalu terang kembali */
+body.page-enter::after { animation: undim 0.4s ease-out; }
+@keyframes undim {
+  from { opacity: 0.35; }
+  to   { opacity: 0; }
+}
+
+/* =====================================================================
+   HALAMAN SAMBUTAN (index.html)
+   ===================================================================== */
+/* Setinggi 1 layar (dikurangi header), isinya di tengah secara vertikal */
+.welcome {
+  min-height: calc(100svh - var(--header-h) - 1px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding-block: 56px;
+}
+.welcome-title {
+  font-size: clamp(2.4rem, 5.5vw, 4.75rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  max-width: 18ch;
+}
+.welcome-body { margin-top: 32px; }
+.welcome-lead {
+  max-width: 48ch;
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+.welcome-detail {
+  margin-top: 16px;
+  max-width: 56ch;
+  color: var(--muted);
+}
+.welcome-next { margin-top: 44px; }
+
+/* =====================================================================
+   HALAMAN DAFTAR ANGGOTA (anggota.html)
+   ===================================================================== */
+.roster { padding-block: 48px 120px; }
+
+/* Judul + jumlah anggota di kiri, status backend di kanan */
+.roster-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.roster-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.roster-count { color: var(--muted); }
+
+/* Status backend */
+.status {
+  margin-left: auto;          /* dorong ke kanan */
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+.status.is-online .status-dot { background: var(--green); }
+.status.is-offline .status-dot { background: var(--red); }
+
+.flash {
+  margin-top: 16px;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.roster-note {
+  padding: 28px 0;
+  color: var(--muted);
+}
+
+.roster-list {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Dua garis vertikal di kiri, tepat di tengah foto:
+   ::before = kabel abu-abu (belum teraliri)
+   ::after  = kabel kuning yang panjangnya diatur JS lewat variabel --trace (0 s.d. 1) */
+.roster-list::before,
+.roster-list::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--node) / 2 - 2px);
+  width: 4px;
+  border-radius: 2px;
+}
+.roster-list::before { background: var(--rule); }
+.roster-list::after {
+  background: var(--yellow);
+  transform-origin: top;
+  transform: scaleY(var(--trace, 0));
+}
+/* Kalau daftar kosong, kabelnya tidak perlu tampil */
+.roster-list:empty::before,
+.roster-list:empty::after { display: none; }
+
+/* Satu baris anggota = satu tautan ke profil lengkap */
+.member-link {
+  display: grid;
+  grid-template-columns: var(--node) 1fr;
+  column-gap: clamp(20px, 4vw, 36px);
+  padding: 40px 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.avatar-node {
+  width: var(--node);
+  height: var(--node);
+  font-size: 1.15rem;
+  /* cincin abu-abu = titik sambung yang belum teraliri */
+  box-shadow: 0 0 0 4px var(--paper), 0 0 0 7px var(--rule);
+  transform: scale(0.88);
+  transition: box-shadow 0.4s ease, transform 0.4s ease;
+}
+
+.member-text {
+  padding-top: 6px;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* Saat kabel kuning sampai di baris ini → titik menyala & teks muncul */
+.member.is-visible .avatar-node {
+  box-shadow: 0 0 0 4px var(--paper), 0 0 0 7px var(--yellow);
+  transform: scale(1);
+}
+.member.is-visible .member-text {
+  opacity: 1;
+  transform: none;
+}
+
+.member-name {
+  font-size: clamp(1.6rem, 3.5vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  transition: color 0.15s;
+}
+.member-link:hover .member-name {
+  color: var(--blue);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.member-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+.member-role { font-weight: 700; color: var(--blue); }
+.member-nim { color: var(--muted); }
+
+.member-skills { margin-top: 6px; }
+
+.member-bio {
+  margin-top: 8px;
+  max-width: 60ch;
+  color: var(--muted);
+  /* potong jadi maksimal 2 baris; versi lengkap ada di halaman profil */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ---------- Jendela tambah anggota ---------- */
+.dialog {
+  width: min(560px, 100% - 32px);
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(24, 33, 44, 0.28);
+}
+.dialog::backdrop { background: rgba(24, 33, 44, 0.5); }
+/* Animasi saat jendela dibuka (respon dari klik tombol) */
+.dialog[open] { animation: dialog-in 0.25s ease-out; }
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.dialog form { padding: 32px; }
+.dialog-title { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; }
+.dialog-text { margin-top: 4px; color: var(--muted); font-size: 1rem; }
+
+label {
+  display: block;
+  margin-top: 20px;
+  margin-bottom: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+input,
+textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 1.0625rem;
+  padding: 11px 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+}
+textarea { resize: vertical; }
+input:focus,
+textarea:focus {
+  outline: 3px solid rgba(36, 87, 165, 0.25);
+  outline-offset: 0;
+  border-color: var(--blue);
+}
+.hint { margin-top: 6px; font-size: 0.9rem; color: var(--muted); }
+
+.form-msg {
+  margin-top: 16px;
+  min-height: 1.5em;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--red);
+}
+
+.dialog-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* =====================================================================
+   HALAMAN PROFIL LENGKAP (profile.html)
+   ===================================================================== */
+.profile { padding-block: 48px 96px; }
+
+.profile-note { padding: 28px 0; color: var(--muted); }
+
+/* Isi profil muncul halus sekali saat selesai dimuat */
+.profile-body { animation: profile-in 0.45s ease-out; }
+@keyframes profile-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.profile-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 32px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--rule);
+}
+.avatar-large {
+  width: 136px;
+  height: 136px;
+  font-size: 2.5rem;
+  box-shadow: 0 0 0 5px var(--paper), 0 0 0 9px var(--yellow);
+}
+.profile-name {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+.profile-role { margin-top: 10px; font-size: 1.25rem; font-weight: 700; color: var(--blue); }
+.profile-nim { margin-top: 2px; color: var(--muted); }
+
+/* Baris "label : isi" */
+.profile-facts { margin: 0; }
+.fact {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 24px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.fact dt { font-weight: 700; }
+.fact dd { margin: 0; max-width: 62ch; }
+.is-empty { color: var(--muted); }
+
+/* Daftar keahlian: satu per baris dengan titik kuning kecil */
+.skill-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.skill-list li { position: relative; padding-left: 22px; }
+.skill-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.65em;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--yellow);
+}
+
+.contact-row { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.contact-row + .contact-row { margin-top: 6px; }
+.contact-label { width: 72px; color: var(--muted); }
+
+.danger-zone { margin-top: 64px; }
+.danger-zone h2 { font-size: 1.25rem; font-weight: 700; }
+.danger-zone p { margin: 6px 0 18px; color: var(--muted); }
+
+/* =====================================================================
+   LAYAR LEBAR (laptop/PC, mulai 960px)
+   Ruang yang lebar dipakai untuk menaruh isi berdampingan,
+   bukan sekadar satu kolom sempit di tengah.
+   ===================================================================== */
+@media (min-width: 960px) {
+  /* Sambutan: dua paragraf berdampingan di bawah judul */
+  .welcome-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 64px;
+    max-width: 1080px;
+  }
+  .welcome-detail { margin-top: 0; padding-top: 4px; }
+
+  /* Daftar anggota: tiap baris jadi 3 kolom → foto | nama, peran, NIM | keahlian & bio */
+  .member-text {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    column-gap: 56px;
+    align-items: start;
+  }
+  .member-detail { padding-top: 8px; }   /* sejajarkan dengan baris pertama nama */
+  .member-skills { margin-top: 0; font-weight: 500; }
+
+  /* Profil: kolom kiri (foto & nama, tetap terlihat saat di-scroll) | kolom kanan (detail) */
+  .profile-body {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-template-areas:
+      "head facts"
+      "head danger";
+    column-gap: 72px;
+    align-items: start;
+  }
+  .profile-head {
+    grid-area: head;
+    position: sticky;
+    top: calc(var(--header-h) + 40px);
+    grid-template-columns: 1fr;   /* foto di atas, nama di bawah */
+    gap: 28px;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  .avatar-large { width: 168px; height: 168px; font-size: 3rem; }
+  .profile-name { font-size: 2.5rem; }   /* muat di kolom kiri tanpa terpotong jadi banyak baris */
+  .profile-facts { grid-area: facts; border-top: 1px solid var(--rule); }
+  .fact { grid-template-columns: 140px 1fr; }
+  .danger-zone { grid-area: danger; }
+}
+
+/* =====================================================================
+   RESPONSIF (layar HP)
+   ===================================================================== */
+@media (max-width: 640px) {
+  :root { --node: 52px; --header-h: 64px; }
+  body { font-size: 1.0625rem; }
+  .header-inner .btn { padding: 8px 14px; font-size: 0.95rem; white-space: nowrap; }
+  .brand { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .welcome-lead { font-size: 1.15rem; }
+  .status { margin-left: 0; width: 100%; }  /* status turun ke baris sendiri */
+  .member-link { padding: 30px 0; }
+  .avatar-node { font-size: 1rem; }
+  .dialog form { padding: 24px; }
+  .profile-head { grid-template-columns: 1fr; gap: 24px; }
+  .avatar-large { width: 104px; height: 104px; font-size: 2rem; }
+  .fact { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* Hormati pengaturan "kurangi animasi" di sistem operasi pengguna */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .roster-list::after { transform: none; }
+}

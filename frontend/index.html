@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Selamat datang | Team Profile Showcase</title>
+
+  <!-- Font Plus Jakarta Sans dari Google Fonts (butuh internet; kalau offline otomatis pakai font cadangan) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+
+  <!-- Satu file CSS dipakai bersama oleh semua halaman -->
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Halaman ini tidak butuh JavaScript: isinya teks dan satu tombol -->
+</head>
+<body>
+
+  <!-- ================= HEADER ================= -->
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html">Team Profile Showcase</a>
+    </div>
+  </header>
+
+  <!-- ================= HALAMAN SAMBUTAN (setinggi 1 layar) ================= -->
+  <main class="wrap welcome">
+    <h1 class="welcome-title">Selamat datang di portofolio tim kami</h1>
+
+    <!-- Di layar lebar, dua paragraf ini tampil berdampingan (2 kolom) -->
+    <div class="welcome-body">
+      <p class="welcome-lead">
+        Di sini kamu bisa mengenal setiap anggota kelompok kami, mahasiswa Teknik
+        Telekomunikasi Telkom University, lengkap dengan peran dan keahliannya.
+      </p>
+
+      <p class="welcome-detail">
+        Website ini dibuat untuk UTS Cloud Computing. Halamannya disajikan Nginx,
+        datanya dikelola API Python dan disimpan di Docker volume, dan setiap
+        perubahan kode di-deploy otomatis oleh Jenkins.
+      </p>
+    </div>
+
+    <!-- Tombol "next": pindah ke halaman daftar anggota -->
+    <a class="btn btn-primary btn-large welcome-next" href="anggota.html">Lihat anggota tim</a>
+  </main>
+
+</body>
+</html>
