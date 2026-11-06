@@ -2,7 +2,8 @@
 // profile.js — khusus profile.html
 // 1) Membaca NIM dari alamat, misal profile.html?nim=101012330060
 // 2) Mengambil data (GET /members) lalu mencari orang dengan NIM itu
-// 3) Tombol hapus (DELETE /members?index=X)
+// 3) Edit profil (PUT /members?index=X)
+// 4) Tombol hapus (DELETE /members?index=X)
 // Fungsi apiGetMembers, createAvatar, dll. berasal dari api.js
 // =====================================================================
 
@@ -11,8 +12,9 @@ const params = new URLSearchParams(location.search);
 const wantedNim = params.get("nim");     // cara utama
 const wantedIndex = params.get("index"); // cadangan kalau data tidak punya NIM
 
-// Ambil elemen-elemen HTML
+// Ambil elemen-elemen HTML halaman profil
 const note = document.getElementById("profileNote");
+const flash = document.getElementById("profileFlash");
 const body = document.getElementById("profileBody");
 const avatarSlot = document.getElementById("profileAvatar");
 const nameEl = document.getElementById("profileName");
@@ -24,6 +26,25 @@ const contactEl = document.getElementById("profileContact");
 const deleteBtn = document.getElementById("deleteBtn");
 const deleteMsg = document.getElementById("deleteMsg");
 
+// Elemen jendela edit
+const editBtn = document.getElementById("editBtn");
+const editDialog = document.getElementById("editDialog");
+const editForm = document.getElementById("editForm");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+const saveEditBtn = document.getElementById("saveEditBtn");
+const editMsg = document.getElementById("editMsg");
+const inputs = {
+  name: document.getElementById("nameInput"),
+  nim: document.getElementById("nimInput"),
+  role: document.getElementById("roleInput"),
+  skills: document.getElementById("skillsInput"),          // hard skill
+  softSkills: document.getElementById("softSkillsInput"),  // soft skill
+  bio: document.getElementById("bioInput"),
+  email: document.getElementById("emailInput"),
+  github: document.getElementById("githubInput"),
+};
+
+let currentMember = null;  // data anggota yang sedang ditampilkan
 let currentName = "";
 
 // Cari posisi (index) orang yang dimaksud di dalam array anggota. -1 = tidak ketemu
@@ -41,8 +62,18 @@ function showNote(text) {
   body.hidden = true;
 }
 
+function showFlash(text) {
+  flash.textContent = text;
+  flash.hidden = false;
+}
+
+// ---------------------------------------------------------------------
+// MENAMPILKAN PROFIL
+// ---------------------------------------------------------------------
+
 // Mengisi halaman dengan data 1 anggota
 function renderProfile(member) {
+  currentMember = member;
   currentName = member.name || "Tanpa nama";
   document.title = `${currentName} | Profil Tim`;
 
@@ -63,6 +94,7 @@ function renderProfile(member) {
 
   // Kontak: email & GitHub (kalau ada)
   contactEl.replaceChildren();
+  contactEl.classList.remove("is-empty");
   if (member.email) {
     const link = document.createElement("a");
     link.href = "mailto:" + member.email;
@@ -147,7 +179,94 @@ async function loadProfile() {
   }
 }
 
-// DELETE /members?index=X
+// ---------------------------------------------------------------------
+// EDIT PROFIL (PUT /members?index=X)
+// ---------------------------------------------------------------------
+
+// Isi form edit dengan data yang sedang tampil
+function fillEditForm(member) {
+  inputs.name.value = member.name || "";
+  inputs.nim.value = member.nim || "";
+  inputs.role.value = member.role || "";
+  inputs.skills.value = toSkillArray(member.skills).join(", ");
+  inputs.softSkills.value = toSkillArray(member.soft_skills).join(", ");
+  inputs.bio.value = member.bio || "";
+  inputs.email.value = member.email || "";
+  inputs.github.value = member.github || "";
+}
+
+editBtn.addEventListener("click", () => {
+  if (!currentMember) return;
+  fillEditForm(currentMember);
+  editMsg.textContent = "";
+  editDialog.showModal(); // buka jendela edit
+});
+
+cancelEditBtn.addEventListener("click", () => editDialog.close());
+
+// Klik di area gelap di luar jendela → tutup
+editDialog.addEventListener("click", (event) => {
+  if (event.target === editDialog) editDialog.close();
+});
+
+editForm.addEventListener("submit", async (event) => {
+  event.preventDefault(); // cegah halaman reload (perilaku bawaan form)
+
+  // Ambil isian form
+  const name = inputs.name.value.trim();
+  const role = inputs.role.value.trim();
+  const skills = toSkillArray(inputs.skills.value);           // hard skill (wajib)
+  const softSkills = toSkillArray(inputs.softSkills.value);   // soft skill (opsional)
+  const bio = inputs.bio.value.trim();
+  const email = inputs.email.value.trim();
+  const githubRaw = inputs.github.value.trim();
+  const github = cleanGithub(githubRaw);
+
+  // Validasi sederhana (aturannya sama dengan form tambah anggota)
+  if (!name || !role || skills.length === 0) {
+    editMsg.textContent = "Lengkapi nama, peran, dan hard skill.";
+    return;
+  }
+  if (email && !inputs.email.checkValidity()) {
+    editMsg.textContent = "Format email belum benar, contoh: nama@student.telkomuniversity.ac.id";
+    return;
+  }
+  if (githubRaw && !github) {
+    editMsg.textContent = "Username GitHub hanya boleh berisi huruf, angka, dan tanda minus.";
+    return;
+  }
+
+  // Data baru lengkap. NIM diambil dari data lama karena memang tidak boleh berubah.
+  // Kolom opsional yang dikosongkan tidak dikirim → ikut terhapus dari data.
+  const updated = { name, nim: currentMember.nim, role, skills };
+  if (softSkills.length) updated.soft_skills = softSkills;
+  if (bio) updated.bio = bio;
+  if (email) updated.email = email;
+  if (github) updated.github = github;
+
+  saveEditBtn.disabled = true;
+  saveEditBtn.textContent = "Menyimpan…";
+  try {
+    // Ambil data terbaru dulu, supaya index yang diedit benar-benar milik orang ini
+    const members = await apiGetMembers();
+    const index = findMemberIndex(members);
+    if (index === -1) throw new Error("profil ini sudah tidak ada");
+
+    const saved = await apiUpdateMember(index, updated);
+    editDialog.close();
+    renderProfile(saved);                 // tampilkan data baru tanpa refresh halaman
+    showFlash("Perubahan profil disimpan.");
+  } catch (err) {
+    editMsg.textContent = `Gagal menyimpan: ${errorText(err)}`;
+  } finally {
+    saveEditBtn.disabled = false;
+    saveEditBtn.textContent = "Simpan perubahan";
+  }
+});
+
+// ---------------------------------------------------------------------
+// HAPUS PROFIL (DELETE /members?index=X)
+// ---------------------------------------------------------------------
 deleteBtn.addEventListener("click", async () => {
   if (!confirm(`Hapus profil ${currentName}? Data ini tidak bisa dikembalikan.`)) return;
 

@@ -38,6 +38,17 @@ async function apiAddMember(member) {
   return res.json().catch(() => ({})); // isi balasan tidak wajib dipakai
 }
 
+// PUT /members?index=X → mengganti data anggota di posisi X (fitur edit profil)
+async function apiUpdateMember(index, member) {
+  const res = await fetch(`${API_BASE}/members?index=${index}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(member),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json(); // backend membalas dengan data yang sudah diperbarui
+}
+
 // DELETE /members?index=X → menghapus anggota di posisi X
 async function apiDeleteMember(index) {
   const res = await fetch(`${API_BASE}/members?index=${index}`, { method: "DELETE" });

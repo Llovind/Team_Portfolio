@@ -364,7 +364,7 @@ body.page-enter::after { animation: undim 0.4s ease-out; }
   overflow: hidden;
 }
 
-/* ---------- Jendela tambah anggota ---------- */
+/* ---------- Jendela tambah / edit anggota ---------- */
 .dialog {
   width: min(560px, 100% - 32px);
   max-height: calc(100dvh - 48px);
@@ -465,6 +465,15 @@ textarea:focus {
 }
 .profile-role { margin-top: 10px; font-size: 1.25rem; font-weight: 700; color: var(--blue); }
 .profile-nim { margin-top: 2px; color: var(--muted); }
+.profile-edit { margin-top: 20px; }
+.profile-flash { margin: 0 0 24px; }   /* pesan "Perubahan profil disimpan." */
+
+/* Kolom yang tidak bisa diubah (NIM di form edit) */
+input[readonly] {
+  background: var(--paper);
+  color: var(--muted);
+  cursor: not-allowed;
+}
 
 /* Baris "label : isi" */
 .profile-facts { margin: 0; }
