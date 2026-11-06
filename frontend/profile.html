@@ -63,6 +63,21 @@
         </div>
       </dl>
 
+      <!-- ================= KEGIATAN & PROJECT =================
+           Disimpan sebagai bagian dari data anggota (PUT /members?index=X) -->
+      <section class="activities" aria-labelledby="activitiesTitle">
+        <div class="activities-head">
+          <h2 class="activities-title" id="activitiesTitle">Kegiatan &amp; project</h2>
+          <button type="button" class="btn btn-outline" id="addActBtn">Tambah kegiatan</button>
+        </div>
+
+        <!-- Menu kategori (tab). Tombolnya dibuat oleh profile.js -->
+        <div class="tabs" role="tablist" aria-label="Kategori kegiatan" id="activityTabs"></div>
+
+        <!-- Daftar kegiatan pada kategori yang dipilih -->
+        <div id="activityPanel" role="tabpanel"></div>
+      </section>
+
       <!-- Hapus profil (DELETE /members?index=X) -->
       <section class="danger-zone">
         <h2>Hapus profil</h2>
@@ -121,6 +136,47 @@
       <div class="dialog-actions">
         <button type="button" class="btn btn-quiet" id="cancelEditBtn">Batal</button>
         <button type="submit" class="btn btn-primary" id="saveEditBtn">Simpan perubahan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ================= JENDELA TAMBAH KEGIATAN ================= -->
+  <dialog class="dialog" id="actDialog" aria-labelledby="actTitle">
+    <form id="actForm" novalidate>
+      <h2 class="dialog-title" id="actTitle">Tambah kegiatan</h2>
+      <p class="dialog-text">Kolom bertanda * wajib diisi.</p>
+
+      <label for="actCategory">Kategori *</label>
+      <!-- value di sini harus sama dengan kategori yang diterima backend -->
+      <select id="actCategory">
+        <option value="project">Project</option>
+        <option value="organisasi">Kegiatan UMKM/Organisasi</option>
+        <option value="eksternal">Kegiatan Eksternal</option>
+      </select>
+
+      <label for="actName">Judul kegiatan *</label>
+      <input id="actName" type="text" maxlength="120" autocomplete="off">
+
+      <label for="actPeriod">Waktu</label>
+      <input id="actPeriod" type="text" maxlength="60" autocomplete="off">
+      <p class="hint">Contoh: Nov 2026, atau 2025–2026</p>
+
+      <label for="actDesc">Penjelasan</label>
+      <textarea id="actDesc" rows="4" maxlength="1500"></textarea>
+      <p class="hint">Apa yang dikerjakan, peranmu, dan hasilnya</p>
+
+      <label for="actPhoto">Foto</label>
+      <!-- accept="image/*" → pemilih file hanya menampilkan gambar -->
+      <input id="actPhoto" type="file" accept="image/jpeg,image/png,image/webp">
+      <p class="hint">JPG, PNG, atau WEBP. Foto otomatis diperkecil sebelum diunggah.</p>
+      <!-- Pratinjau foto yang dipilih -->
+      <img class="photo-preview" id="actPreview" alt="Pratinjau foto kegiatan" hidden>
+
+      <p class="form-msg" id="actMsg" role="alert"></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-quiet" id="cancelActBtn">Batal</button>
+        <button type="submit" class="btn btn-primary" id="saveActBtn">Simpan kegiatan</button>
       </div>
     </form>
   </dialog>

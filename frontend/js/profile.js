@@ -3,7 +3,8 @@
 // 1) Membaca NIM dari alamat, misal profile.html?nim=101012330060
 // 2) Mengambil data (GET /members) lalu mencari orang dengan NIM itu
 // 3) Edit profil (PUT /members?index=X)
-// 4) Tombol hapus (DELETE /members?index=X)
+// 4) Kegiatan & project: tab kategori, tambah (dengan foto), hapus
+// 5) Tombol hapus profil (DELETE /members?index=X)
 // Fungsi apiGetMembers, createAvatar, dll. berasal dari api.js
 // =====================================================================
 
@@ -11,6 +12,13 @@
 const params = new URLSearchParams(location.search);
 const wantedNim = params.get("nim");     // cara utama
 const wantedIndex = params.get("index"); // cadangan kalau data tidak punya NIM
+
+// Kategori kegiatan: "key" harus sama dengan yang diterima backend
+const CATEGORIES = [
+  { key: "project", label: "Project" },
+  { key: "organisasi", label: "Kegiatan UMKM/Organisasi" },
+  { key: "eksternal", label: "Kegiatan Eksternal" },
+];
 
 // Ambil elemen-elemen HTML halaman profil
 const note = document.getElementById("profileNote");
@@ -26,7 +34,7 @@ const contactEl = document.getElementById("profileContact");
 const deleteBtn = document.getElementById("deleteBtn");
 const deleteMsg = document.getElementById("deleteMsg");
 
-// Elemen jendela edit
+// Elemen jendela edit profil
 const editBtn = document.getElementById("editBtn");
 const editDialog = document.getElementById("editDialog");
 const editForm = document.getElementById("editForm");
@@ -44,8 +52,26 @@ const inputs = {
   github: document.getElementById("githubInput"),
 };
 
-let currentMember = null;  // data anggota yang sedang ditampilkan
+// Elemen kegiatan & jendela tambah kegiatan
+const activityTabs = document.getElementById("activityTabs");
+const activityPanel = document.getElementById("activityPanel");
+const addActBtn = document.getElementById("addActBtn");
+const actDialog = document.getElementById("actDialog");
+const actForm = document.getElementById("actForm");
+const actCategory = document.getElementById("actCategory");
+const actName = document.getElementById("actName");
+const actPeriod = document.getElementById("actPeriod");
+const actDesc = document.getElementById("actDesc");
+const actPhoto = document.getElementById("actPhoto");
+const actPreview = document.getElementById("actPreview");
+const actMsg = document.getElementById("actMsg");
+const cancelActBtn = document.getElementById("cancelActBtn");
+const saveActBtn = document.getElementById("saveActBtn");
+
+let currentMember = null;        // data anggota yang sedang ditampilkan
 let currentName = "";
+let activeCategory = "project";  // tab kegiatan yang sedang dibuka
+let previewUrl = null;           // alamat sementara untuk pratinjau foto
 
 // Cari posisi (index) orang yang dimaksud di dalam array anggota. -1 = tidak ketemu
 function findMemberIndex(members) {
@@ -65,6 +91,43 @@ function showNote(text) {
 function showFlash(text) {
   flash.textContent = text;
   flash.hidden = false;
+}
+
+// Daftar kegiatan milik anggota (selalu berupa array, walau kosong)
+function activitiesOf(member) {
+  return Array.isArray(member && member.activities) ? member.activities : [];
+}
+
+// ---------------------------------------------------------------------
+// MENYIMPAN KE BACKEND (dipakai edit profil DAN kegiatan)
+// ---------------------------------------------------------------------
+
+// Menyusun data lengkap 1 anggota untuk dikirim lewat PUT.
+// PUT mengganti seluruh data, jadi semua kolom (termasuk kegiatan) harus ikut dikirim.
+function buildPayload(member) {
+  const payload = {
+    name: member.name,
+    nim: member.nim,
+    role: member.role,
+    skills: toSkillArray(member.skills),
+  };
+  const soft = toSkillArray(member.soft_skills);
+  if (soft.length) payload.soft_skills = soft;
+  if (member.bio) payload.bio = member.bio;
+  if (member.email) payload.email = member.email;
+  if (member.github) payload.github = member.github;
+  const activities = activitiesOf(member);
+  if (activities.length) payload.activities = activities;
+  return payload;
+}
+
+// PUT /members?index=X dengan index terbaru (dicari ulang berdasarkan NIM)
+async function saveMember(member) {
+  // Ambil data terbaru dulu, supaya index yang diubah benar-benar milik orang ini
+  const members = await apiGetMembers();
+  const index = findMemberIndex(members);
+  if (index === -1) throw new Error("profil ini sudah tidak ada");
+  return apiUpdateMember(index, buildPayload(member));
 }
 
 // ---------------------------------------------------------------------
@@ -115,6 +178,8 @@ function renderProfile(member) {
     contactEl.classList.add("is-empty");
   }
 
+  renderActivities();
+
   note.hidden = true;
   body.hidden = false;
 }
@@ -159,7 +224,212 @@ function contactRow(label, linkEl) {
   return row;
 }
 
-// GET /members → cari orangnya → tampilkan
+// ---------------------------------------------------------------------
+// KEGIATAN & PROJECT
+// ---------------------------------------------------------------------
+
+// Gambar ulang tab kategori + daftar kegiatan pada tab yang aktif
+function renderActivities() {
+  const all = activitiesOf(currentMember);
+
+  // 1) Tab kategori, lengkap dengan jumlah kegiatannya
+  activityTabs.replaceChildren();
+  CATEGORIES.forEach(cat => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(cat.key === activeCategory));
+    tab.textContent = cat.label;
+
+    const count = document.createElement("span");
+    count.className = "tab-count";
+    count.textContent = all.filter(a => a.category === cat.key).length;
+    tab.appendChild(count);
+
+    tab.addEventListener("click", () => {
+      activeCategory = cat.key;
+      renderActivities();
+    });
+    activityTabs.appendChild(tab);
+  });
+
+  // 2) Daftar kegiatan di kategori aktif.
+  //    Simpan juga posisi aslinya (index) supaya tombol hapus tahu kegiatan mana.
+  const items = all
+    .map((activity, index) => ({ activity, index }))
+    .filter(entry => entry.activity.category === activeCategory);
+
+  activityPanel.replaceChildren();
+  if (items.length === 0) {
+    const label = CATEGORIES.find(c => c.key === activeCategory).label;
+    const empty = document.createElement("p");
+    empty.className = "activity-empty";
+    empty.textContent = `Belum ada ${label.toLowerCase()}. Tambahkan lewat tombol Tambah kegiatan.`;
+    activityPanel.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "activity-list";
+  items.forEach(({ activity, index }) => list.appendChild(createActivityItem(activity, index)));
+  activityPanel.appendChild(list);
+}
+
+// Membuat 1 baris kegiatan: foto (kalau ada) + judul, waktu, penjelasan, tombol hapus
+function createActivityItem(activity, index) {
+  const item = document.createElement("li");
+  item.className = "activity";
+
+  if (isUploadedPhoto(activity.photo)) {
+    // Klik foto → buka ukuran penuh di tab baru
+    const photoLink = document.createElement("a");
+    photoLink.className = "activity-photo";
+    photoLink.href = activity.photo;
+    photoLink.target = "_blank";
+    photoLink.rel = "noopener";
+    const img = document.createElement("img");
+    img.src = activity.photo;
+    img.alt = "Foto " + (activity.title || "kegiatan");
+    img.loading = "lazy";
+    photoLink.appendChild(img);
+    item.appendChild(photoLink);
+  } else {
+    item.classList.add("no-photo");
+  }
+
+  const text = document.createElement("div");
+
+  const title = document.createElement("h3");
+  title.className = "activity-title";
+  title.textContent = activity.title || "Tanpa judul";
+  text.appendChild(title);
+
+  if (activity.period) {
+    const period = document.createElement("p");
+    period.className = "activity-period";
+    period.textContent = activity.period;
+    text.appendChild(period);
+  }
+
+  if (activity.description) {
+    const desc = document.createElement("p");
+    desc.className = "activity-desc";
+    desc.textContent = activity.description; // enter/baris baru tetap tampil (lihat CSS)
+    text.appendChild(desc);
+  }
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "activity-delete";
+  removeBtn.textContent = "Hapus kegiatan";
+  removeBtn.addEventListener("click", () => deleteActivity(index, removeBtn));
+  text.appendChild(removeBtn);
+
+  item.appendChild(text);
+  return item;
+}
+
+// Hapus 1 kegiatan: kirim ulang data anggota tanpa kegiatan itu (PUT)
+async function deleteActivity(index, button) {
+  const activity = activitiesOf(currentMember)[index];
+  if (!activity || !confirm(`Hapus kegiatan "${activity.title}"?`)) return;
+
+  button.disabled = true;
+  try {
+    const remaining = activitiesOf(currentMember).filter((_, i) => i !== index);
+    const saved = await saveMember({ ...currentMember, activities: remaining });
+    renderProfile(saved);
+    showFlash("Kegiatan dihapus.");
+  } catch (err) {
+    button.disabled = false;
+    alert(`Gagal menghapus kegiatan: ${errorText(err)}`);
+  }
+}
+
+// --- Jendela tambah kegiatan ---
+function clearPreview() {
+  if (previewUrl) URL.revokeObjectURL(previewUrl); // bebaskan memori pratinjau lama
+  previewUrl = null;
+  actPreview.removeAttribute("src");
+  actPreview.hidden = true;
+}
+
+addActBtn.addEventListener("click", () => {
+  if (!currentMember) return;
+  actForm.reset();
+  clearPreview();
+  actCategory.value = activeCategory; // kategori awal = tab yang sedang dibuka
+  actMsg.textContent = "";
+  actDialog.showModal();
+});
+
+cancelActBtn.addEventListener("click", () => actDialog.close());
+actDialog.addEventListener("click", (event) => {
+  if (event.target === actDialog) actDialog.close();
+});
+
+// Tampilkan pratinjau begitu foto dipilih
+actPhoto.addEventListener("change", () => {
+  clearPreview();
+  const file = actPhoto.files[0];
+  if (!file) return;
+  previewUrl = URL.createObjectURL(file);
+  actPreview.src = previewUrl;
+  actPreview.hidden = false;
+});
+
+actForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const newActivity = {
+    category: actCategory.value,
+    title: actName.value.trim(),
+  };
+  if (!newActivity.title) {
+    actMsg.textContent = "Judul kegiatan wajib diisi.";
+    return;
+  }
+  const period = actPeriod.value.trim();
+  const description = actDesc.value.trim();
+  if (period) newActivity.period = period;
+  if (description) newActivity.description = description;
+
+  saveActBtn.disabled = true;
+  try {
+    // 1) Kalau ada foto: perkecil di browser, lalu unggah → dapat alamat foto
+    const file = actPhoto.files[0];
+    if (file) {
+      saveActBtn.textContent = "Mengunggah foto…";
+      let blob;
+      try {
+        blob = await compressImage(file);
+      } catch {
+        throw new Error("format foto tidak didukung, gunakan JPG atau PNG");
+      }
+      newActivity.photo = await apiUploadPhoto(blob);
+    }
+
+    // 2) Simpan kegiatan baru bersama data anggota (PUT)
+    saveActBtn.textContent = "Menyimpan…";
+    const activities = [...activitiesOf(currentMember), newActivity];
+    const saved = await saveMember({ ...currentMember, activities });
+
+    actDialog.close();
+    activeCategory = newActivity.category; // langsung buka tab kegiatan yang baru ditambah
+    renderProfile(saved);
+    showFlash("Kegiatan ditambahkan.");
+  } catch (err) {
+    actMsg.textContent = `Gagal menyimpan: ${errorText(err)}`;
+  } finally {
+    saveActBtn.disabled = false;
+    saveActBtn.textContent = "Simpan kegiatan";
+  }
+});
+
+// ---------------------------------------------------------------------
+// MEMUAT PROFIL (GET /members)
+// ---------------------------------------------------------------------
 async function loadProfile() {
   if (wantedNim === null && wantedIndex === null) {
     showNote("Alamat profil tidak lengkap. Kembali ke daftar tim lalu pilih salah satu nama.");
@@ -236,23 +506,21 @@ editForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  // Data baru lengkap. NIM diambil dari data lama karena memang tidak boleh berubah.
-  // Kolom opsional yang dikosongkan tidak dikirim → ikut terhapus dari data.
-  const updated = { name, nim: currentMember.nim, role, skills };
-  if (softSkills.length) updated.soft_skills = softSkills;
-  if (bio) updated.bio = bio;
-  if (email) updated.email = email;
-  if (github) updated.github = github;
+  // Data baru. NIM & kegiatan diambil dari data lama (NIM tidak boleh berubah,
+  // kegiatan diatur lewat bagian "Kegiatan & project").
+  // Kolom opsional yang dikosongkan ikut terhapus dari data.
+  const updated = {
+    name, role, skills,
+    nim: currentMember.nim,
+    soft_skills: softSkills,
+    bio, email, github,
+    activities: activitiesOf(currentMember),
+  };
 
   saveEditBtn.disabled = true;
   saveEditBtn.textContent = "Menyimpan…";
   try {
-    // Ambil data terbaru dulu, supaya index yang diedit benar-benar milik orang ini
-    const members = await apiGetMembers();
-    const index = findMemberIndex(members);
-    if (index === -1) throw new Error("profil ini sudah tidak ada");
-
-    const saved = await apiUpdateMember(index, updated);
+    const saved = await saveMember(updated);
     editDialog.close();
     renderProfile(saved);                 // tampilkan data baru tanpa refresh halaman
     showFlash("Perubahan profil disimpan.");

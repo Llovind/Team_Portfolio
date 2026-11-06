@@ -8,17 +8,22 @@
 #   GET    /members           -> 200 + array member
 #   POST   /members           -> 201 + member yang baru ditambah
 #                                400 {"error": "..."} kalau JSON rusak / field kurang
-#   PUT    /members?index=X   -> 200 + member yang sudah diperbarui (fitur edit profil)
+#   PUT    /members?index=X   -> 200 + member yang sudah diperbarui (edit profil & kegiatan)
 #                                400 kalau data tidak valid / NIM diubah, 404 kalau index tidak ada
 #   DELETE /members?index=X   -> 200 {"message": "..."}
 #                                400 kalau index bukan angka, 404 kalau index tidak ada
+#   POST   /uploads           -> 201 {"url": "/api/uploads/<nama>.jpg"} (unggah foto kegiatan)
+#   GET    /uploads/<nama>    -> file foto kegiatan
 #   Format 1 member: {"name": "...", "nim": "...", "role": "...", "skills": ["...", "..."]}
-#   + field opsional dari form frontend: "soft_skills" (array), "bio", "email", "github"
+#   + field opsional dari form frontend: "soft_skills" (array), "bio", "email", "github",
+#     "activities" (array kegiatan: category, title, period, description, photo)
 # =============================================================
 
 import json
 import os
+import re
 import threading
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -28,6 +33,21 @@ from urllib.parse import urlparse, parse_qs
 DATA_DIR = os.environ.get("DATA_DIR", "/var/lib/backend_data")
 DATA_FILE = os.path.join(DATA_DIR, "team_members.json")
 PORT = int(os.environ.get("PORT", "5000"))
+
+# Foto kegiatan disimpan di subfolder "uploads" di dalam volume yang sama,
+# jadi ikut aman saat kontainer backend dihapus (Data Immunity).
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024            # batas ukuran 1 foto: 5 MB
+IMAGE_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+
+# Pola nama file foto: 32 karakter acak (huruf a-f & angka) + ekstensi.
+# Dipakai untuk mencegah orang membaca/menghapus file lain (misal "../team_members.json").
+PHOTO_URL_RE = re.compile(r"/api/uploads/([a-f0-9]{32}\.(?:jpg|png|webp))")
+UPLOAD_PATH_RE = re.compile(r"/uploads/([a-f0-9]{32}\.(?:jpg|png|webp))")
+
+# Kategori kegiatan yang boleh dipakai (harus sama dengan menu di frontend)
+ACTIVITY_CATEGORIES = ("project", "organisasi", "eksternal")
+MAX_ACTIVITIES = 50                            # batas jumlah kegiatan per anggota
 
 # Lock = "kunci pintu" supaya dua request yang datang bersamaan
 # tidak menulis file JSON di waktu yang sama (bisa bikin file rusak).
@@ -72,6 +92,88 @@ def clean_path(raw_path):
     if len(path) > 1 and path.endswith("/"):
         path = path.rstrip("/")
     return path
+
+
+# ---------- Fungsi bantu foto kegiatan ----------
+def looks_like_image(data, ext):
+    """
+    Cek "tanda tangan" di awal file (magic bytes), supaya yang diunggah
+    benar-benar gambar, bukan file lain yang diberi nama .jpg.
+    """
+    if ext == "jpg":
+        return data[:3] == b"\xff\xd8\xff"
+    if ext == "png":
+        return data[:8] == b"\x89PNG\r\n\x1a\n"
+    if ext == "webp":
+        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    return False
+
+
+def photos_of(member):
+    """Kumpulkan semua alamat foto kegiatan milik 1 anggota."""
+    photos = set()
+    for activity in member.get("activities", []) if isinstance(member, dict) else []:
+        if isinstance(activity, dict) and activity.get("photo"):
+            photos.add(activity["photo"])
+    return photos
+
+
+def delete_photos(urls):
+    """Hapus file foto yang sudah tidak dipakai (misal kegiatannya dihapus)."""
+    for url in urls:
+        match = PHOTO_URL_RE.fullmatch(url or "")
+        if match:
+            try:
+                os.remove(os.path.join(UPLOAD_DIR, match.group(1)))
+            except OSError:
+                pass  # file sudah tidak ada -> abaikan
+
+
+# ---------- Validasi data anggota ----------
+def build_activities(raw):
+    """
+    Cek & rapikan daftar kegiatan.
+    Hasil: (daftar_kegiatan, None) kalau valid, atau (None, "pesan error").
+    """
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return None, "Field 'activities' harus berupa array"
+    if len(raw) > MAX_ACTIVITIES:
+        return None, f"Maksimal {MAX_ACTIVITIES} kegiatan per anggota"
+
+    result = []
+    for number, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            return None, f"Kegiatan ke-{number} tidak valid"
+
+        category = str(item.get("category", "")).strip()
+        if category not in ACTIVITY_CATEGORIES:
+            return None, f"Kategori kegiatan ke-{number} harus project, organisasi, atau eksternal"
+
+        title = str(item.get("title", "") or "").strip()
+        if not title:
+            return None, f"Judul kegiatan ke-{number} wajib diisi"
+
+        activity = {"category": category, "title": title[:120]}
+
+        # Kolom opsional: waktu kegiatan & deskripsi (dipotong kalau terlalu panjang)
+        period = str(item.get("period", "") or "").strip()
+        if period:
+            activity["period"] = period[:60]
+        description = str(item.get("description", "") or "").strip()
+        if description:
+            activity["description"] = description[:1500]
+
+        # Foto opsional, tapi kalau ada harus hasil unggahan lewat POST /uploads
+        photo = str(item.get("photo", "") or "").strip()
+        if photo:
+            if not PHOTO_URL_RE.fullmatch(photo):
+                return None, f"Foto kegiatan ke-{number} tidak valid"
+            activity["photo"] = photo
+
+        result.append(activity)
+    return result, None
 
 
 def build_member(data):
@@ -123,6 +225,13 @@ def build_member(data):
         value = str(data.get(field, "") or "").strip()
         if value:
             member[field] = value
+
+    # e) Field OPSIONAL: activities (kegiatan/project dengan foto)
+    activities, error = build_activities(data.get("activities"))
+    if error:
+        return None, error
+    if activities:
+        member["activities"] = activities
 
     return member, None
 
@@ -179,12 +288,36 @@ class Handler(BaseHTTPRequestHandler):
             # Endpoint tambahan untuk stage "Health Check" di Jenkins
             return self.send_json(200, {"status": "ok"})
 
+        # Foto kegiatan: /uploads/<32 karakter>.jpg
+        match = UPLOAD_PATH_RE.fullmatch(path)
+        if match:
+            return self.send_photo(match.group(1))
+
         # Alamat lain tidak dikenal -> 404 Not Found
         return self.send_json(404, {"error": "Endpoint tidak ditemukan"})
 
+    def send_photo(self, filename):
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.isfile(file_path):
+            return self.send_json(404, {"error": "Foto tidak ditemukan"})
+        with open(file_path, "rb") as f:
+            data = f.read()
+        ext = filename.rsplit(".", 1)[1]
+        content_type = {v: k for k, v in IMAGE_TYPES.items()}[ext]
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        # Nama file tidak pernah berubah isinya, jadi browser boleh menyimpannya lama (cache)
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self.end_headers()
+        self.wfile.write(data)
+
     # ===================== POST (TAMBAH) =====================
     def do_POST(self):
-        if clean_path(self.path) != "/members":
+        path = clean_path(self.path)
+        if path == "/uploads":
+            return self.handle_upload()
+        if path != "/members":
             return self.send_json(404, {"error": "Endpoint tidak ditemukan"})
 
         # 1) Baca body JSON. Kalau rusak -> 400 Bad Request
@@ -209,7 +342,39 @@ class Handler(BaseHTTPRequestHandler):
         # 201 = Created. Sesuai kesepakatan: balas dengan member yang baru ditambah
         return self.send_json(201, member)
 
-    # ===================== PUT (EDIT PROFIL) =====================
+    # ===================== POST /uploads (UNGGAH FOTO) =====================
+    # Body request = isi file gambar apa adanya (bukan JSON),
+    # dengan header Content-Type: image/jpeg, image/png, atau image/webp.
+    def handle_upload(self):
+        content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        ext = IMAGE_TYPES.get(content_type)
+        if not ext:
+            return self.send_json(400, {"error": "Foto harus berformat JPG, PNG, atau WEBP"})
+
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            length = 0
+        if length <= 0:
+            return self.send_json(400, {"error": "File foto kosong"})
+        if length > MAX_UPLOAD_BYTES:
+            self.close_connection = True   # jangan baca file yang terlalu besar
+            return self.send_json(413, {"error": "Ukuran foto maksimal 5 MB"})
+
+        data = self.rfile.read(length)
+        if not looks_like_image(data, ext):
+            return self.send_json(400, {"error": "File yang diunggah bukan gambar yang valid"})
+
+        # Nama file acak, supaya tidak bisa ditebak dan tidak bentrok
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+            f.write(data)
+
+        # 201 = Created. Alamat ini yang nanti disimpan di kolom "photo" kegiatan
+        return self.send_json(201, {"url": f"/api/uploads/{filename}"})
+
+    # ===================== PUT (EDIT PROFIL & KEGIATAN) =====================
     def do_PUT(self):
         if clean_path(self.path) != "/members":
             return self.send_json(404, {"error": "Endpoint tidak ditemukan"})
@@ -235,8 +400,11 @@ class Handler(BaseHTTPRequestHandler):
             # NIM dipakai sebagai alamat halaman profil, jadi tidak boleh diubah lewat edit
             if str(members[index].get("nim")) != member["nim"]:
                 return self.send_json(400, {"error": "NIM tidak boleh diubah"})
+            old_photos = photos_of(members[index])
             members[index] = member
             save_members(members)
+            # Foto dari kegiatan yang dihapus sudah tidak dipakai -> hapus filenya
+            delete_photos(old_photos - photos_of(member))
 
         # 200 = OK. Balas dengan data yang sudah diperbarui
         return self.send_json(200, member)
@@ -258,6 +426,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(404, {"error": f"Data dengan index {index} tidak ditemukan"})
             removed = members.pop(index)      # buang data di posisi index
             save_members(members)
+            delete_photos(photos_of(removed))  # foto kegiatannya ikut dihapus
 
         # 200 = OK. Sesuai kesepakatan: balas {"message": "..."}
         return self.send_json(200, {"message": f"Anggota '{removed['name']}' berhasil dihapus"})

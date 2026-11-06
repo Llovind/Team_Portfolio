@@ -49,6 +49,18 @@ async function apiUpdateMember(index, member) {
   return res.json(); // backend membalas dengan data yang sudah diperbarui
 }
 
+// POST /uploads → mengunggah 1 foto kegiatan, hasilnya alamat foto, misal "/api/uploads/abc...jpg"
+async function apiUploadPhoto(blob) {
+  const res = await fetch(`${API_BASE}/uploads`, {
+    method: "POST",
+    headers: { "Content-Type": blob.type || "image/jpeg" },
+    body: blob, // isi file langsung, bukan JSON
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  const data = await res.json();
+  return data.url;
+}
+
 // DELETE /members?index=X → menghapus anggota di posisi X
 async function apiDeleteMember(index) {
   const res = await fetch(`${API_BASE}/members?index=${index}`, { method: "DELETE" });
@@ -106,6 +118,31 @@ function cleanGithub(value) {
   let username = String(value).trim().replace(/^@/, "");
   username = username.replace(/^https?:\/\/(www\.)?github\.com\//i, "").split("/")[0];
   return /^[A-Za-z0-9-]{1,39}$/.test(username) ? username : "";
+}
+
+// Alamat foto kegiatan yang sah hanya yang berasal dari unggahan backend.
+// Dicek lagi di sini supaya data aneh tidak ikut ditampilkan.
+function isUploadedPhoto(url) {
+  return /^\/api\/uploads\/[a-f0-9]{32}\.(jpg|png|webp)$/.test(String(url || ""));
+}
+
+// Memperkecil foto di browser sebelum diunggah:
+// sisi terpanjang maksimal 1280 piksel, disimpan sebagai JPEG kualitas 82%.
+// Foto dari HP yang 5–10 MB biasanya jadi hanya 150–400 KB.
+async function compressImage(file, maxSize = 1280, quality = 0.82) {
+  const bitmap = await createImageBitmap(file);           // baca gambar
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";                              // latar putih (untuk PNG transparan)
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error("foto gagal diproses"))),
+                  "image/jpeg", quality);
+  });
 }
 
 // Alamat halaman profil lengkap seseorang.
