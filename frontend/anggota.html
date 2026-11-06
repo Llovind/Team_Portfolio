@@ -75,9 +75,14 @@
         <option value="Dokumentasi">
       </datalist>
 
-      <label for="skillsInput">Keahlian *</label>
+      <!-- Keahlian dibagi dua: hard skill (teknis, wajib) & soft skill (non-teknis, opsional) -->
+      <label for="skillsInput">Hard skill *</label>
       <input id="skillsInput" type="text" maxlength="200" autocomplete="off">
-      <p class="hint">Pisahkan dengan koma, contoh: HTML, Docker, Jenkins</p>
+      <p class="hint">Kemampuan teknis, pisahkan dengan koma. Contoh: HTML, Docker, Jenkins</p>
+
+      <label for="softSkillsInput">Soft skill</label>
+      <input id="softSkillsInput" type="text" maxlength="200" autocomplete="off">
+      <p class="hint">Kemampuan non-teknis, pisahkan dengan koma. Contoh: Komunikasi, Kerja tim</p>
 
       <label for="bioInput">Tentang</label>
       <textarea id="bioInput" rows="3" maxlength="400"></textarea>

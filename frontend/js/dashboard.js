@@ -28,7 +28,8 @@ const inputs = {
   name: document.getElementById("nameInput"),
   nim: document.getElementById("nimInput"),
   role: document.getElementById("roleInput"),
-  skills: document.getElementById("skillsInput"),
+  skills: document.getElementById("skillsInput"),          // hard skill
+  softSkills: document.getElementById("softSkillsInput"),  // soft skill
   bio: document.getElementById("bioInput"),
   email: document.getElementById("emailInput"),
   github: document.getElementById("githubInput"),
@@ -72,6 +73,17 @@ function showFlash(text) {
 // Kunci unik tiap anggota (NIM; kalau tidak ada, pakai posisi)
 function memberKey(member, index) {
   return member && member.nim ? "nim:" + member.nim : "idx:" + index;
+}
+
+// Membuat 1 baris keahlian, misal:  Hard skill   HTML, CSS, Docker
+function createSkillLine(label, skills) {
+  const line = document.createElement("p");
+  line.className = "member-skills";
+  const tag = document.createElement("span");
+  tag.className = "skill-label";
+  tag.textContent = label;
+  line.append(tag, document.createTextNode(skills.join(", ")));
+  return line;
 }
 
 // Membuat 1 baris profil singkat
@@ -123,14 +135,11 @@ function createRow(member, index) {
   }
   main.appendChild(meta);
 
-  // Keahlian ditulis sebagai teks biasa, dipisah koma
-  const skills = toSkillArray(member.skills);
-  if (skills.length) {
-    const skillText = document.createElement("p");
-    skillText.className = "member-skills";
-    skillText.textContent = skills.join(", ");
-    detail.appendChild(skillText);
-  }
+  // Keahlian: satu baris hard skill, satu baris soft skill (kalau ada)
+  const hardSkills = toSkillArray(member.skills);
+  const softSkills = toSkillArray(member.soft_skills);
+  if (hardSkills.length) detail.appendChild(createSkillLine("Hard skill", hardSkills));
+  if (softSkills.length) detail.appendChild(createSkillLine("Soft skill", softSkills));
 
   // Cuplikan "Tentang" (dipotong 2 baris oleh CSS)
   if (member.bio) {
@@ -276,7 +285,8 @@ form.addEventListener("submit", async (event) => {
   const name = inputs.name.value.trim();
   const nim = inputs.nim.value.trim();
   const role = inputs.role.value.trim();
-  const skills = toSkillArray(inputs.skills.value);
+  const skills = toSkillArray(inputs.skills.value);           // hard skill (wajib)
+  const softSkills = toSkillArray(inputs.softSkills.value);   // soft skill (opsional)
   const bio = inputs.bio.value.trim();
   const email = inputs.email.value.trim();
   const githubRaw = inputs.github.value.trim();
@@ -284,7 +294,7 @@ form.addEventListener("submit", async (event) => {
 
   // Validasi sederhana di sisi frontend
   if (!name || !nim || !role || skills.length === 0) {
-    formMsg.textContent = "Lengkapi nama, NIM, peran, dan keahlian.";
+    formMsg.textContent = "Lengkapi nama, NIM, peran, dan hard skill.";
     return;
   }
   if (!/^\d+$/.test(nim)) {
@@ -306,7 +316,9 @@ form.addEventListener("submit", async (event) => {
 
   // Susun data sesuai kesepakatan dengan backend.
   // Kolom opsional hanya dikirim kalau diisi.
+  // "skills" tetap dipakai untuk hard skill supaya sesuai kontrak awal dengan backend
   const newMember = { name, nim, role, skills };
+  if (softSkills.length) newMember.soft_skills = softSkills;
   if (bio) newMember.bio = bio;
   if (email) newMember.email = email;
   if (github) newMember.github = github;

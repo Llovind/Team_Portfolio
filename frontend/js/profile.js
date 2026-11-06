@@ -55,13 +55,11 @@ function renderProfile(member) {
   bioEl.textContent = member.bio || "Belum ada deskripsi.";
   bioEl.classList.toggle("is-empty", !member.bio);
 
-  // Keahlian: satu per baris
-  skillsEl.replaceChildren();
-  toSkillArray(member.skills).forEach(skill => {
-    const item = document.createElement("li");
-    item.textContent = skill;
-    skillsEl.appendChild(item);
-  });
+  // Keahlian: dua kelompok, hard skill (titik kuning) & soft skill (titik biru)
+  skillsEl.replaceChildren(
+    skillGroup("Hard skill", toSkillArray(member.skills), "skill-list"),
+    skillGroup("Soft skill", toSkillArray(member.soft_skills), "skill-list is-soft")
+  );
 
   // Kontak: email & GitHub (kalau ada)
   contactEl.replaceChildren();
@@ -87,6 +85,35 @@ function renderProfile(member) {
 
   note.hidden = true;
   body.hidden = false;
+}
+
+// Satu kelompok keahlian: judul kecil + daftar (satu keahlian per baris)
+function skillGroup(title, skills, listClass) {
+  const group = document.createElement("div");
+  group.className = "skill-group";
+
+  const heading = document.createElement("p");
+  heading.className = "skill-group-title";
+  heading.textContent = title;
+  group.appendChild(heading);
+
+  if (skills.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "is-empty";
+    empty.textContent = "Belum diisi.";
+    group.appendChild(empty);
+    return group;
+  }
+
+  const list = document.createElement("ul");
+  list.className = listClass;
+  skills.forEach(skill => {
+    const item = document.createElement("li");
+    item.textContent = skill;
+    list.appendChild(item);
+  });
+  group.appendChild(list);
+  return group;
 }
 
 // Satu baris kontak: label di kiri, tautan di kanan

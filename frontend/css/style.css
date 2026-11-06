@@ -341,6 +341,16 @@ body.page-enter::after { animation: undim 0.4s ease-out; }
 .member-nim { color: var(--muted); }
 
 .member-skills { margin-top: 6px; }
+/* Label kecil "Hard skill" / "Soft skill" di depan daftar keahlian.
+   Lebarnya dibuat sama supaya isi kedua baris rata kiri. */
+.skill-label {
+  display: inline-block;
+  min-width: 96px;
+  margin-right: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
 
 .member-bio {
   margin-top: 8px;
@@ -483,6 +493,18 @@ textarea:focus {
   background: var(--yellow);
 }
 
+/* Soft skill memakai titik biru supaya beda dengan hard skill (kuning) */
+.skill-list.is-soft li::before { background: var(--blue); }
+
+/* Dua kelompok keahlian: hard skill & soft skill */
+.skill-groups { display: grid; gap: 24px; }
+.skill-group-title {
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .contact-row { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .contact-row + .contact-row { margin-top: 6px; }
 .contact-label { width: 72px; color: var(--muted); }
@@ -539,6 +561,7 @@ textarea:focus {
   .profile-name { font-size: 2.5rem; }   /* muat di kolom kiri tanpa terpotong jadi banyak baris */
   .profile-facts { grid-area: facts; border-top: 1px solid var(--rule); }
   .fact { grid-template-columns: 140px 1fr; }
+  .skill-groups { grid-template-columns: 1fr 1fr; }   /* hard & soft skill berdampingan */
   .danger-zone { grid-area: danger; }
 }
 

@@ -11,7 +11,7 @@
 #   DELETE /members?index=X   -> 200 {"message": "..."}
 #                                400 kalau index bukan angka, 404 kalau index tidak ada
 #   Format 1 member: {"name": "...", "nim": "...", "role": "...", "skills": ["...", "..."]}
-#   + field opsional dari form frontend: "bio", "email", "github"
+#   + field opsional dari form frontend: "soft_skills" (array), "bio", "email", "github"
 # =============================================================
 
 import json
@@ -146,6 +146,16 @@ class Handler(BaseHTTPRequestHandler):
         if not skills:
             return self.send_json(400, {"error": "Field 'skills' minimal berisi 1 skill"})
         member["skills"] = skills
+
+        # 4b) Field OPSIONAL: soft_skills, contoh ["Komunikasi", "Kerja tim"].
+        #     Kalau dikirim berupa teks "Komunikasi, Kerja tim" juga diterima lalu dipecah.
+        soft = data.get("soft_skills")
+        if isinstance(soft, str):
+            soft = soft.split(",")
+        if isinstance(soft, list):
+            soft = [str(s).strip() for s in soft if str(s).strip()]
+            if soft:
+                member["soft_skills"] = soft
 
         # 5) Field OPSIONAL dari form frontend: bio, email, github.
         #    Hanya disimpan kalau diisi (tidak wajib -> tidak ada error kalau kosong).
