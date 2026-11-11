@@ -29,7 +29,7 @@ Laporan lokal `artifacts/docker-verification.json` menunjukkan project sementara
 
 ## Belum diverifikasi
 
-- Video demo 5-8 menit dan URL video yang dapat diakses dosen.
+- Isi, durasi 5-8 menit, dan izin akses video demo. Tautan folder Google Drive sudah diberikan pengguna dan ditambahkan ke README, tetapi alat browsing tidak dapat membuka folder tersebut untuk verifikasi.
 
 Jangan mengubah status di atas menjadi lulus tanpa bukti baru.
 
