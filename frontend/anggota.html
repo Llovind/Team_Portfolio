@@ -14,6 +14,7 @@
   <!-- defer = script dijalankan setelah HTML selesai dibaca, dengan urutan tetap:
        api.js dulu (fungsi-fungsi fetch), baru dashboard.js (yang memakainya) -->
   <script src="js/api.js" defer></script>
+  <script src="js/github.js" defer></script>
   <script src="js/dashboard.js" defer></script>
 </head>
 <!-- class "page-enter" → halaman dibuka dalam keadaan redup lalu terang kembali -->
@@ -93,7 +94,7 @@
 
       <label for="githubInput">Username GitHub</label>
       <input id="githubInput" type="text" maxlength="60" autocomplete="off">
-      <p class="hint">Dipakai sebagai foto profil kalau belum ada foto di folder assets/foto</p>
+      <p class="hint">Digunakan untuk foto profil dan menampilkan repositori publik sebagai proyek.</p>
 
       <!-- role="alert" → pesan error langsung dibacakan pembaca layar -->
       <p class="form-msg" id="formMsg" role="alert"></p>

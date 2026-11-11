@@ -72,13 +72,14 @@ let currentMember = null;        // data anggota yang sedang ditampilkan
 let currentName = "";
 let activeCategory = "project";  // tab kegiatan yang sedang dibuka
 let previewUrl = null;           // alamat sementara untuk pratinjau foto
+const githubProjects = createGithubProjects();
 
 // Cari posisi (index) orang yang dimaksud di dalam array anggota. -1 = tidak ketemu
 function findMemberIndex(members) {
   if (wantedNim !== null) {
     return members.findIndex(m => m && String(m.nim) === wantedNim);
   }
-  const index = Number.parseInt(wantedIndex, 10);
+  const index = /^\d+$/.test(wantedIndex || "") ? Number(wantedIndex) : -1;
   return Number.isInteger(index) && index >= 0 && index < members.length ? index : -1;
 }
 
@@ -121,13 +122,9 @@ function buildPayload(member) {
   return payload;
 }
 
-// PUT /members?index=X dengan index terbaru (dicari ulang berdasarkan NIM)
+// Save against the version originally displayed, so stale edits are rejected.
 async function saveMember(member) {
-  // Ambil data terbaru dulu, supaya index yang diubah benar-benar milik orang ini
-  const members = await apiGetMembers();
-  const index = findMemberIndex(members);
-  if (index === -1) throw new Error("profil ini sudah tidak ada");
-  return apiUpdateMember(index, buildPayload(member));
+  return apiUpdateMember(currentMember, buildPayload(member));
 }
 
 // ---------------------------------------------------------------------
@@ -179,6 +176,7 @@ function renderProfile(member) {
   }
 
   renderActivities();
+  githubProjects.setUsername(cleanGithub(member.github));
 
   note.hidden = true;
   body.hidden = false;
@@ -231,6 +229,7 @@ function contactRow(label, linkEl) {
 // Gambar ulang tab kategori + daftar kegiatan pada tab yang aktif
 function renderActivities() {
   const all = activitiesOf(currentMember);
+  githubProjects.setVisible(activeCategory === "project");
 
   // 1) Tab kategori, lengkap dengan jumlah kegiatannya
   activityTabs.replaceChildren();
@@ -239,17 +238,32 @@ function renderActivities() {
     tab.type = "button";
     tab.className = "tab";
     tab.setAttribute("role", "tab");
+    tab.id = `tab-${cat.key}`;
+    tab.setAttribute("aria-controls", "activityPanel");
+    tab.tabIndex = cat.key === activeCategory ? 0 : -1;
     tab.setAttribute("aria-selected", String(cat.key === activeCategory));
     tab.textContent = cat.label;
 
     const count = document.createElement("span");
     count.className = "tab-count";
-    count.textContent = all.filter(a => a.category === cat.key).length;
+    const total = all.filter(a => a.category === cat.key).length;
+    count.textContent = cat.key === "project" ? `${total} manual` : total;
     tab.appendChild(count);
 
     tab.addEventListener("click", () => {
       activeCategory = cat.key;
       renderActivities();
+      document.getElementById(`tab-${activeCategory}`).focus();
+    });
+    tab.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const index = CATEGORIES.findIndex(c => c.key === activeCategory);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? CATEGORIES.length - 1
+        : (index + (event.key === "ArrowRight" ? 1 : -1) + CATEGORIES.length) % CATEGORIES.length;
+      activeCategory = CATEGORIES[next].key;
+      renderActivities();
+      document.getElementById(`tab-${activeCategory}`).focus();
     });
     activityTabs.appendChild(tab);
   });
@@ -261,11 +275,15 @@ function renderActivities() {
     .filter(entry => entry.activity.category === activeCategory);
 
   activityPanel.replaceChildren();
+  activityPanel.setAttribute("aria-labelledby", `tab-${activeCategory}`);
+  activityPanel.tabIndex = 0;
   if (items.length === 0) {
     const label = CATEGORIES.find(c => c.key === activeCategory).label;
     const empty = document.createElement("p");
     empty.className = "activity-empty";
-    empty.textContent = `Belum ada ${label.toLowerCase()}. Tambahkan lewat tombol Tambah kegiatan.`;
+    empty.textContent = activeCategory === "project"
+      ? "Belum ada project manual. Tambahkan lewat tombol Tambah kegiatan, atau lihat repositori GitHub di bawah."
+      : `Belum ada ${label.toLowerCase()}. Tambahkan lewat tombol Tambah kegiatan.`;
     activityPanel.appendChild(empty);
     return;
   }
@@ -365,9 +383,7 @@ addActBtn.addEventListener("click", () => {
 });
 
 cancelActBtn.addEventListener("click", () => actDialog.close());
-actDialog.addEventListener("click", (event) => {
-  if (event.target === actDialog) actDialog.close();
-});
+configureDialog(actDialog);
 
 // Tampilkan pratinjau begitu foto dipilih
 actPhoto.addEventListener("change", () => {
@@ -395,7 +411,8 @@ actForm.addEventListener("submit", async (event) => {
   if (period) newActivity.period = period;
   if (description) newActivity.description = description;
 
-  saveActBtn.disabled = true;
+  setDialogBusy(actDialog, true);
+  let uploadedPhoto = null;
   try {
     // 1) Kalau ada foto: perkecil di browser, lalu unggah → dapat alamat foto
     const file = actPhoto.files[0];
@@ -408,6 +425,7 @@ actForm.addEventListener("submit", async (event) => {
         throw new Error("format foto tidak didukung, gunakan JPG atau PNG");
       }
       newActivity.photo = await apiUploadPhoto(blob);
+      uploadedPhoto = newActivity.photo;
     }
 
     // 2) Simpan kegiatan baru bersama data anggota (PUT)
@@ -421,8 +439,11 @@ actForm.addEventListener("submit", async (event) => {
     showFlash("Kegiatan ditambahkan.");
   } catch (err) {
     actMsg.textContent = `Gagal menyimpan: ${errorText(err)}`;
+    if (uploadedPhoto) {
+      try { await apiDeleteUnusedPhoto(uploadedPhoto); } catch { /* Cleanup is best-effort if the server is unavailable. */ }
+    }
   } finally {
-    saveActBtn.disabled = false;
+    setDialogBusy(actDialog, false);
     saveActBtn.textContent = "Simpan kegiatan";
   }
 });
@@ -443,8 +464,14 @@ async function loadProfile() {
       return;
     }
     renderProfile(members[index] || {});
+    if (params.get("edit") === "1") {
+      fillEditForm(currentMember);
+      editDialog.showModal();
+      params.delete("edit");
+      history.replaceState(null, "", `profile.html?${params.toString()}`);
+    }
   } catch (err) {
-    showNote("Profil belum bisa dimuat karena backend tidak aktif. Halaman mencoba lagi setiap 5 detik.");
+    showNote(`Profil belum bisa dimuat: ${errorText(err)}. Mencoba lagi setiap 5 detik.`);
     setTimeout(loadProfile, 5000);
   }
 }
@@ -475,9 +502,7 @@ editBtn.addEventListener("click", () => {
 cancelEditBtn.addEventListener("click", () => editDialog.close());
 
 // Klik di area gelap di luar jendela → tutup
-editDialog.addEventListener("click", (event) => {
-  if (event.target === editDialog) editDialog.close();
-});
+configureDialog(editDialog);
 
 editForm.addEventListener("submit", async (event) => {
   event.preventDefault(); // cegah halaman reload (perilaku bawaan form)
@@ -517,7 +542,7 @@ editForm.addEventListener("submit", async (event) => {
     activities: activitiesOf(currentMember),
   };
 
-  saveEditBtn.disabled = true;
+  setDialogBusy(editDialog, true);
   saveEditBtn.textContent = "Menyimpan…";
   try {
     const saved = await saveMember(updated);
@@ -527,7 +552,7 @@ editForm.addEventListener("submit", async (event) => {
   } catch (err) {
     editMsg.textContent = `Gagal menyimpan: ${errorText(err)}`;
   } finally {
-    saveEditBtn.disabled = false;
+    setDialogBusy(editDialog, false);
     saveEditBtn.textContent = "Simpan perubahan";
   }
 });
@@ -542,13 +567,7 @@ deleteBtn.addEventListener("click", async () => {
   deleteBtn.textContent = "Menghapus…";
   deleteMsg.textContent = "";
   try {
-    // Ambil data terbaru dulu, supaya index yang dihapus benar-benar milik orang ini
-    // (index bisa bergeser kalau ada anggota lain yang dihapus sebelumnya)
-    const members = await apiGetMembers();
-    const index = findMemberIndex(members);
-    if (index === -1) throw new Error("profil ini sudah tidak ada");
-
-    await apiDeleteMember(index);
+    await apiDeleteMember(currentMember);
     // Kembali ke daftar tim sambil membawa nama yang dihapus untuk pesan konfirmasi
     location.href = "anggota.html?deleted=" + encodeURIComponent(currentName);
   } catch (err) {

@@ -12,6 +12,44 @@
 // DNS Docker di jaringan app-net (lihat nginx/default.conf).
 const API_BASE = "/api";
 
+async function apiFetch(url, options = {}) {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+  } catch (err) {
+    if (err.name === "TimeoutError") throw new Error("server terlalu lama merespons, coba lagi");
+    throw err;
+  }
+}
+
+function memberTarget(member) {
+  return `nim=${encodeURIComponent(member.nim)}`;
+}
+
+function memberHeaders(member) {
+  if (!member._version) throw new Error("versi profil tidak tersedia, muat ulang halaman");
+  return { "If-Match": `"${member._version}"` };
+}
+
+function configureDialog(dialog) {
+  dialog.addEventListener("cancel", event => {
+    if (dialog.dataset.busy === "true") event.preventDefault();
+  });
+  dialog.addEventListener("click", event => {
+    const rect = dialog.getBoundingClientRect();
+    const outside = event.clientX < rect.left || event.clientX > rect.right
+      || event.clientY < rect.top || event.clientY > rect.bottom;
+    if (event.target === dialog && outside && dialog.dataset.busy !== "true") dialog.close();
+  });
+}
+
+function setDialogBusy(dialog, busy) {
+  dialog.dataset.busy = String(busy);
+  dialog.setAttribute("aria-busy", String(busy));
+  dialog.querySelectorAll("input, textarea, select, button").forEach(control => {
+    control.disabled = busy;
+  });
+}
+
 // ---------------------------------------------------------------------
 // FUNGSI KE BACKEND
 // ---------------------------------------------------------------------
@@ -19,17 +57,23 @@ const API_BASE = "/api";
 // GET /members → mengembalikan array anggota
 async function apiGetMembers() {
   // cache: "no-store" → selalu ambil data terbaru, jangan pakai cache browser
-  const res = await fetch(`${API_BASE}/members`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/members`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readError(res));
 
   const data = await res.json();
-  // Jaga-jaga kalau backend membungkus array, misal {"members": [...]}
-  return Array.isArray(data) ? data : (data.members || data.data || []);
+  if (!Array.isArray(data)) throw new Error("format daftar anggota dari server tidak valid");
+  return data;
+}
+
+async function apiGetGithubRepos(username, page = 1) {
+  const res = await apiFetch(`${API_BASE}/github/repos?username=${encodeURIComponent(username)}&page=${page}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
 }
 
 // POST /members → menambah 1 anggota
 async function apiAddMember(member) {
-  const res = await fetch(`${API_BASE}/members`, {
+  const res = await apiFetch(`${API_BASE}/members`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(member),
@@ -38,11 +82,11 @@ async function apiAddMember(member) {
   return res.json().catch(() => ({})); // isi balasan tidak wajib dipakai
 }
 
-// PUT /members?index=X → mengganti data anggota di posisi X (fitur edit profil)
-async function apiUpdateMember(index, member) {
-  const res = await fetch(`${API_BASE}/members?index=${index}`, {
+// NIM identifies the member; If-Match prevents overwriting a newer version.
+async function apiUpdateMember(original, member) {
+  const res = await apiFetch(`${API_BASE}/members?${memberTarget(original)}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...memberHeaders(original) },
     body: JSON.stringify(member),
   });
   if (!res.ok) throw new Error(await readError(res));
@@ -51,7 +95,7 @@ async function apiUpdateMember(index, member) {
 
 // POST /uploads → mengunggah 1 foto kegiatan, hasilnya alamat foto, misal "/api/uploads/abc...jpg"
 async function apiUploadPhoto(blob) {
-  const res = await fetch(`${API_BASE}/uploads`, {
+  const res = await apiFetch(`${API_BASE}/uploads`, {
     method: "POST",
     headers: { "Content-Type": blob.type || "image/jpeg" },
     body: blob, // isi file langsung, bukan JSON
@@ -62,9 +106,16 @@ async function apiUploadPhoto(blob) {
 }
 
 // DELETE /members?index=X → menghapus anggota di posisi X
-async function apiDeleteMember(index) {
-  const res = await fetch(`${API_BASE}/members?index=${index}`, { method: "DELETE" });
+async function apiDeleteMember(member) {
+  const res = await apiFetch(`${API_BASE}/members?${memberTarget(member)}`, {
+    method: "DELETE", headers: memberHeaders(member),
+  });
   if (!res.ok) throw new Error(await readError(res));
+}
+
+async function apiDeleteUnusedPhoto(url) {
+  if (!isUploadedPhoto(url)) return;
+  await apiFetch(url, { method: "DELETE" });
 }
 
 // ---------------------------------------------------------------------
@@ -73,14 +124,13 @@ async function apiDeleteMember(index) {
 
 // Membaca pesan error dari backend, misal {"error": "NIM wajib diisi"}
 async function readError(res) {
-  // 502/503/504 = Nginx-nya jalan, tapi container backend sedang mati
-  if (res.status >= 502 && res.status <= 504) {
-    return `backend sedang tidak aktif (HTTP ${res.status})`;
-  }
   try {
     const body = await res.json();
     return body.error || body.message || `HTTP ${res.status}`;
   } catch {
+    if ([502, 503, 504].includes(res.status)) {
+      return `server aplikasi tidak dapat dihubungi melalui proxy (HTTP ${res.status})`;
+    }
     return `HTTP ${res.status}`;
   }
 }
@@ -139,6 +189,7 @@ async function compressImage(file, maxSize = 1280, quality = 0.82) {
   ctx.fillStyle = "#ffffff";                              // latar putih (untuk PNG transparan)
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error("foto gagal diproses"))),
                   "image/jpeg", quality);

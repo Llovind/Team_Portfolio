@@ -22,7 +22,7 @@
   --blue-dark: #1B4382;
   --yellow: #F2BE22;     /* kuning patch cord: kabel & penanda aktif */
   --red: #B42318;        /* aksi hapus & error */
-  --green: #2F8F5B;      /* status terhubung & pesan sukses */
+  --green: #227044;      /* status terhubung & pesan sukses */
 
   --font: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
   --wrap: 1200px;        /* lebar maksimum konten (lebar layar laptop) */
@@ -41,7 +41,10 @@ body {
   background: var(--paper);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  overflow-wrap: anywhere;
 }
+
+.member-text, .profile-body > *, .fact dd, .activity > * { min-width: 0; }
 
 h1, h2, h3, p { margin: 0; }
 
@@ -282,7 +285,7 @@ body.page-enter::after { animation: undim 0.4s ease-out; }
 /* Satu baris anggota = satu tautan ke profil lengkap */
 .member-link {
   display: grid;
-  grid-template-columns: var(--node) 1fr;
+  grid-template-columns: var(--node) minmax(0, 1fr);
   column-gap: clamp(20px, 4vw, 36px);
   padding: 40px 0;
   color: inherit;
@@ -324,12 +327,46 @@ body.page-enter::after { animation: undim 0.4s ease-out; }
   letter-spacing: -0.015em;
   transition: color 0.15s;
 }
-.member-link:hover .member-name {
-  color: var(--blue);
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 6px;
+.member-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.github-projects { margin-top: 32px; border-top: 1px solid var(--rule); padding-top: 24px; }
+.repo-list { list-style: none; margin: 0; padding: 0; }
+.repo-list li { padding: 20px 0; border-bottom: 1px solid var(--rule); }
+.repo-list h4 { margin: 0 0 6px; font-size: 1.1rem; }
+.repo-list p { margin-top: 6px; }
+.repo-meta { color: var(--muted); font-size: 0.95rem; }
+.repo-showcase { margin-top: 20px; min-height: 124px; }
+.repo-showcase h4 { margin: 0; font-size: 1rem; }
+.repo-showcase ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
 }
+.repo-showcase li { min-width: 0; max-width: 100%; }
+.repo-chip {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 3px solid var(--blue);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: background-color 0.15s, color 0.15s;
+}
+.repo-chip:hover { background: var(--blue); color: #fff; }
+.repo-chip:active { background: var(--blue-dark); color: #fff; }
+.repo-showcase > .btn { margin-top: 10px; }
 
 .member-meta {
   margin-top: 8px;
@@ -575,7 +612,7 @@ input[readonly] {
 /* Satu kegiatan: foto di kiri, teks di kanan, dipisah garis tipis */
 .activity {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 28px;
   padding: 28px 0;
   border-bottom: 1px solid var(--rule);
@@ -652,7 +689,7 @@ input[readonly] {
   /* Profil: kolom kiri (foto & nama, tetap terlihat saat di-scroll) | kolom kanan (detail) */
   .profile-body {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 340px minmax(0, 1fr);
     grid-template-areas:
       "head facts"
       "head activities"

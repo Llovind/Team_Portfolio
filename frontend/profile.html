@@ -13,6 +13,7 @@
 
   <!-- api.js dipakai bersama; profile.js khusus halaman ini -->
   <script src="js/api.js" defer></script>
+  <script src="js/github.js" defer></script>
   <script src="js/profile.js" defer></script>
 </head>
 <!-- class "page-enter" → halaman dibuka dalam keadaan redup lalu terang kembali -->
@@ -76,6 +77,16 @@
 
         <!-- Daftar kegiatan pada kategori yang dipilih -->
         <div id="activityPanel" role="tabpanel"></div>
+        <section class="github-projects" id="githubProjects" aria-labelledby="githubTitle">
+          <h3 id="githubTitle">Repositori GitHub</h3>
+          <p class="hint">Repo publik dari username GitHub di profil, diurutkan berdasarkan push terbaru. Fork dan arsip diberi keterangan.</p>
+          <p class="hint" id="githubStatus" role="status"></p>
+          <ul class="repo-list" id="githubList"></ul>
+          <div class="member-actions">
+            <button type="button" class="btn btn-outline" id="githubRetry" hidden>Coba lagi</button>
+            <button type="button" class="btn btn-outline" id="githubMore" hidden>Muat repo berikutnya</button>
+          </div>
+        </section>
       </section>
 
       <!-- Hapus profil (DELETE /members?index=X) -->
@@ -129,6 +140,7 @@
 
       <label for="githubInput">Username GitHub</label>
       <input id="githubInput" type="text" maxlength="60" autocomplete="off">
+      <p class="hint">Digunakan untuk foto profil dan menampilkan repositori publik sebagai proyek.</p>
 
       <!-- role="alert" → pesan error langsung dibacakan pembaca layar -->
       <p class="form-msg" id="editMsg" role="alert"></p>

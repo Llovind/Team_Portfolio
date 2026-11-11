@@ -97,10 +97,8 @@ function createRow(member, index) {
   // Yang sudah pernah muncul langsung tampil tanpa animasi ulang
   if (revealed.has(key) || reduceMotion) row.classList.add("is-visible");
 
-  // Seluruh baris adalah tautan ke halaman profil lengkap
-  const link = document.createElement("a");
+  const link = document.createElement("div");
   link.className = "member-link";
-  link.href = profileUrl(member, index);
 
   // Teks dibagi 2 kelompok supaya di layar lebar bisa tampil berdampingan:
   // main   = nama, peran, NIM
@@ -134,6 +132,17 @@ function createRow(member, index) {
     meta.appendChild(nim);
   }
   main.appendChild(meta);
+  const actions = document.createElement("div");
+  actions.className = "member-actions";
+  for (const [label, edit] of [["Lihat profil", false], ["Edit profil", true]]) {
+    const action = document.createElement("a");
+    action.className = `btn ${edit ? "btn-primary" : "btn-outline"} member-action`;
+    action.href = profileUrl(member, index) + (edit ? "&edit=1" : "");
+    action.textContent = label;
+    action.setAttribute("aria-label", `${label} ${member.name || "anggota"}`);
+    actions.appendChild(action);
+  }
+  main.appendChild(actions);
 
   // Keahlian: satu baris hard skill, satu baris soft skill (kalau ada)
   const hardSkills = toSkillArray(member.skills);
@@ -148,6 +157,8 @@ function createRow(member, index) {
     bio.textContent = member.bio;
     detail.appendChild(bio);
   }
+  const github = cleanGithub(member.github);
+  if (github) detail.appendChild(createRepoShowcase(github));
 
   link.append(createAvatar(member, "avatar-node"), text);
   row.appendChild(link);
@@ -216,7 +227,7 @@ window.addEventListener("resize", onScroll);
 // Satu listener di daftar (bukan di tiap baris), karena barisnya digambar ulang
 // setiap data berubah. event.target.closest() mencari tautan yang diklik.
 rosterList.addEventListener("click", (event) => {
-  const link = event.target.closest(".member-link");
+  const link = event.target.closest("a.member-action");
   if (!link) return;
 
   // Biarkan perilaku normal kalau dibuka di tab baru (Ctrl/Cmd/Shift + klik)
@@ -259,7 +270,8 @@ async function loadMembers() {
     // Berguna saat demo "Data Immunity": backend dihapus → status merah,
     // backend dinyalakan lagi → status hijau dan data tetap ada.
     setStatus(false);
-    if (!hasLoadedOnce) showNote("Daftar anggota akan muncul otomatis setelah backend menyala.");
+    statusText.textContent = `Gagal memuat anggota: ${errorText(err)}. Mencoba lagi setiap 5 detik.`;
+    if (!hasLoadedOnce) showNote("Daftar anggota akan muncul otomatis setelah server tersedia.");
   }
 }
 
@@ -274,9 +286,7 @@ openAddBtn.addEventListener("click", () => {
 cancelAddBtn.addEventListener("click", () => dialog.close());
 
 // Klik di area gelap di luar jendela → tutup
-dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) dialog.close();
-});
+configureDialog(dialog);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault(); // cegah halaman reload (perilaku bawaan form)
@@ -323,7 +333,7 @@ form.addEventListener("submit", async (event) => {
   if (email) newMember.email = email;
   if (github) newMember.github = github;
 
-  saveBtn.disabled = true;
+  setDialogBusy(dialog, true);
   saveBtn.textContent = "Menyimpan…";
   try {
     await apiAddMember(newMember);
@@ -338,7 +348,7 @@ form.addEventListener("submit", async (event) => {
   } catch (err) {
     formMsg.textContent = `Gagal menyimpan: ${errorText(err)}`;
   } finally {
-    saveBtn.disabled = false;
+    setDialogBusy(dialog, false);
     saveBtn.textContent = "Simpan anggota";
   }
 });
