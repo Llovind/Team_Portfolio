@@ -36,7 +36,7 @@ Untuk controller dalam Docker, workspace harus berada di bawah Jenkins home yang
 
 ## 2. Plugin dan credential GitHub
 
-Pastikan plugin **Pipeline**, **Git**, **GitHub**, dan **Timestamper** tersedia di Manage Jenkins > Plugins. Jangan menonaktifkan keamanan Jenkins untuk mengaktifkan pipeline.
+Pastikan plugin **Pipeline**, **Git**, dan **GitHub** tersedia di Manage Jenkins > Plugins. Pipeline tidak memerlukan plugin Timestamper. Jangan menonaktifkan keamanan Jenkins untuk mengaktifkan pipeline.
 
 Sesuai brief ujian, buat GitHub PAT classic dengan expiry 30/90 hari dan scope `repo` serta `admin:repo_hook`. Masukkan melalui **Manage Jenkins > Credentials > System > Global credentials > Add Credentials**, jenis **Username with password**:
 
