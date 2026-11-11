@@ -2,15 +2,37 @@
 
 Target panduan: Jenkins yang sudah berjalan di **http://localhost:8081**, dengan agent pada host Docker yang sama. Aplikasi di **http://localhost:8082**. Jangan menjalankan preview Python dan frontend Compose pada port yang sama.
 
+## Pemulihan login Jenkins dalam Docker
+
+Instalasi aktual pengguna memakai container `jenkins-server` dengan image `jenkins-docker:lts`. Untuk melihat username tanpa mengubah akun:
+
+```powershell
+python -B tools/recover_jenkins.py --list-only
+```
+
+Untuk reset password akun lokal yang sudah ada:
+
+```powershell
+python -B tools/recover_jenkins.py
+```
+
+Pilih username yang ditampilkan, lalu masukkan password baru dua kali di terminal lokal. Script membuat backup konfigurasi akun di Jenkins home, menaruh hook startup sementara dengan permission 600, dan me-restart container. Hook mengubah password akun yang dipilih tanpa mengubah security realm atau otorisasi, lalu menghapus dirinya. Password tidak dicetak atau disimpan dalam repository; file hook sementara dalam container mengandung password yang di-encode (bukan enkripsi) sampai hook selesai/cleanup berjalan. Jangan kirim password ke chat. Script hanya mendukung Jenkins local user database.
+
+Setelah pesan berhasil, login di http://localhost:8081. Mekanisme startup hook mengikuti [dokumentasi Jenkins](https://www.jenkins.io/doc/book/managing/groovy-hook-scripts/).
+
+Instalasi aktual sudah diverifikasi: `jenkins-server` dapat mengakses Docker Engine 28.3.2 melalui `/var/run/docker.sock`, dan `/var/jenkins_home` memakai named volume `jenkins-data`. Pipeline mendukung setup ini dengan memetakan workspace ke path Docker host secara otomatis.
+
 ## 1. Agent dan akses Docker
 
-Gunakan agent bernama/berlabel **team-portfolio**, pada host yang menjalankan Docker Desktop dan menyimpan workspace pipeline. Jenkinsfile berjalan di Windows (`bat`) maupun Linux (`sh`). Agent harus bisa menjalankan `git`, `docker info`, dan `docker compose version` memakai akun OS-nya sendiri. Python dan Node untuk tes disediakan lewat container; tidak wajib di-install pada agent.
+Untuk setup tugas ini, gunakan **Built-In Node** di container `jenkins-server`, beri label **team-portfolio**, dan pastikan minimal satu executor aktif. Parameter job `JENKINS_CONTAINER` dibiarkan `jenkins-server`. Jenkinsfile memeriksa mount home dengan `docker inspect`, lalu memakai sumber path pada Docker host untuk container tes dan bind mount deployment. Path seperti `/var/jenkins_home/workspace/...` tidak langsung dipakai sebagai bind source karena path itu milik container controller.
+
+Agent harus bisa menjalankan `git`, `docker info`, dan `docker compose version`. Python dan Node untuk tes disediakan lewat container; tidak wajib di-install pada executor. Jika kelak beralih ke agent native Windows/Linux pada host Docker yang sama, kosongkan parameter `JENKINS_CONTAINER`; pipeline memakai path workspace native.
 
 Di **Manage Jenkins > Nodes**, tambahkan label `team-portfolio` pada node yang dipakai. Jika node lokal/controller dipakai khusus demonstrasi tugas, pastikan executor aktif. Untuk penggunaan berkelanjutan, gunakan agent terpisah. Jangan memilih agent acak: deployment dan bind mount harus tetap pada host yang sama.
 
 Jika Jenkins berjalan sebagai Windows service dengan akun berbeda, keberhasilan `docker info` pada PowerShell pengguna belum membuktikan service Jenkins punya akses. Jalankan agent sebagai akun lokal yang memang dapat mengakses Docker Desktop. Tidak perlu menonaktifkan authentication Jenkins atau membuka Docker daemon melalui TCP.
 
-Workspace agent dan Docker daemon harus menunjuk filesystem yang sama. Panduan ini mengasumsikan agent native pada host; Jenkins dalam container dengan host Docker socket membutuhkan pemetaan workspace tambahan dan tidak tercakup oleh setup ini.
+Untuk controller dalam Docker, workspace harus berada di bawah Jenkins home yang di-mount. Jangan mengubah nama/lokasi volume secara manual dalam Jenkinsfile: pipeline membaca mount aktual. Saat deployment, `FRONTEND_SOURCE` dan `NGINX_SOURCE` menunjuk snapshot pada host Docker; Compose lokal tetap memakai default `./frontend` dan `./nginx/default.conf`.
 
 ## 2. Plugin dan credential GitHub
 
@@ -68,7 +90,7 @@ Lakukan push perubahan kecil ke `main`. Periksa **Recent Deliveries**: respons 2
 - Simpan screenshot lima stage hijau, console log SHA, dan delivery webhook berhasil. Jangan rekam PAT/password saat membuat video.
 - `Cannot connect`/`Access denied` Docker: cek akun agent dan Docker Desktop pada host yang sama.
 - Port 8082 dipakai: hentikan preview Python. Untuk port deploy lain, ubah FRONTEND_PORT pada Jenkinsfile dan dokumentasi bersamaan.
-- Bind mount tidak ditemukan: cek path workspace pada host daemon; jangan memakai remote Docker daemon dengan path lokal yang berbeda.
+- Bind mount tidak ditemukan: periksa baris `Docker workspace` pada console log, nama parameter `JENKINS_CONTAINER`, dan mount Jenkins home. Untuk native agent, kosongkan parameter container.
 - 502 sesaat setelah backend dibuat ulang: Nginx resolver dapat membutuhkan hingga 10 detik untuk alamat backend baru.
 - Build berhenti saat health check: lihat `docker compose logs`; file JSON rusak sengaja mengembalikan 503 agar data tidak tertimpa.
 - GitHub repo fetch gagal: cek internet pada container backend. Ini berbeda dari webhook GitHub menuju Jenkins.

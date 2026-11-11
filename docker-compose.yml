@@ -37,13 +37,13 @@ services:
       # BIND MOUNT: isi folder ./frontend di laptop langsung dipakai Nginx,
       # jadi edit HTML/CSS/JS langsung terlihat tanpa rebuild image
       - type: bind
-        source: ./frontend
+        source: ${FRONTEND_SOURCE:-./frontend}
         target: /usr/share/nginx/html
         read_only: true
         bind:
           create_host_path: false
       - type: bind
-        source: ./nginx/default.conf
+        source: ${NGINX_SOURCE:-./nginx/default.conf}
         target: /etc/nginx/conf.d/default.conf
         read_only: true
         bind:
