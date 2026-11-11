@@ -2,7 +2,7 @@
 
 ## Tes aplikasi
 
-- Python: 22 tes API/release/recovery lulus pada build Jenkins #3, termasuk stale/simultaneous edits, korupsi storage, kegagalan write, persistence server, foto bersama, GitHub API mock, dan snapshot release.
+- Python: 26 tes API/release/recovery/webhook proxy lulus pada build Jenkins #4, termasuk stale/simultaneous edits, korupsi storage, kegagalan write, persistence server, foto bersama, GitHub API mock, snapshot release, dan pembatasan proxy webhook.
 - JavaScript: 15 tes frontend lulus, termasuk header versi, timeout/retry, dialog, pagination, pergantian akun GitHub, dan showcase maksimal tiga repo.
 - Syntax Python diperiksa untuk backend, tools, dan tests; konfigurasi Compose valid.
 
@@ -29,7 +29,6 @@ Laporan lokal `artifacts/docker-verification.json` menunjukkan project sementara
 
 ## Belum diverifikasi
 
-- Webhook GitHub yang benar-benar memicu build untuk commit `main`.
 - Video demo 5-8 menit dan URL video yang dapat diakses dosen.
 
 Jangan mengubah status di atas menjadi lulus tanpa bukti baru.
@@ -40,4 +39,10 @@ Console output build **#3**, dipicu manual oleh `admin`, menunjukkan **Finished:
 
 Deployment menggunakan snapshot `.deployments/build-3`, dengan bind source pada host Docker di volume `jenkins-data`. `team-backend` dan `team-frontend` healthy. Frontend dipublikasikan pada `127.0.0.1:8082`; health check berhasil untuk seluruh halaman/aset utama, `/api/health`, dan `/api/members` melalui Nginx.
 
-Keberhasilan manual ini belum membuktikan webhook. Bukti auto-trigger akan ditambahkan setelah delivery GitHub dan build dengan SHA yang sama diverifikasi.
+## Webhook dan auto-deployment aktual
+
+Build **#4** menunjukkan pemicu **Started by GitHub push by Llovind**, checkout commit `7b2fd87ae744725e3090196b4c86c18d5f32f85c` (`Verify GitHub webhook deployment`), dan hasil **Finished: SUCCESS**. Seluruh lima stage selesai, 26 tes Python dan 15 tes JavaScript lulus, serta deployment menggunakan snapshot `.deployments/build-4`.
+
+`team-backend` dan `team-frontend` dibuat ulang lalu healthy. Pemeriksaan HTTP ke `http://127.0.0.1:8082/` juga menemukan judul baru `Kenali tim dan proyek kami`, sehingga perubahan commit terlihat pada layanan yang di-deploy. Delivery webhook GitHub dilaporkan berhasil sebelum push pengujian tersebut.
+
+Dengan demikian, jalur **git push main → GitHub Webhook → Jenkins → test/build → deployment → health check** sudah terverifikasi. Nomor build dan SHA di atas mencatat bukti yang benar-benar diperoleh, bukan template hasil.
