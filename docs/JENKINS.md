@@ -24,6 +24,20 @@ Instalasi aktual sudah diverifikasi: `jenkins-server` dapat mengakses Docker Eng
 
 ## 1. Agent dan akses Docker
 
+Docker CLI dan Compose adalah dua dependensi terpisah. Jika `docker info` berhasil tetapi `docker compose` tidak dikenal di container Jenkins, jalankan dari PowerShell lokal:
+
+```powershell
+python -B tools/install_jenkins_compose.py
+```
+
+Script mengambil plugin Compose Linux dari image resmi `docker:28.3.2-cli`, memasangnya untuk seluruh user pada container Jenkins yang sudah ada, lalu memverifikasi perintahnya. Script tidak mengubah job, akun, volume Jenkins, atau Docker daemon. Container donor sementara dibersihkan. Instalasi bertahan saat restart container yang sama; untuk container pengganti, build image yang menyertakan plugin:
+
+```powershell
+docker build -t team-portfolio-jenkins:lts -f jenkins/Dockerfile .
+```
+
+Dockerfile ini memperluas image lokal yang sudah dipakai (`jenkins-docker:lts`). Saat mengganti controller nanti, pertahankan volume `jenkins-data`, mount socket, port, dan konfigurasi lainnya. Tidak perlu mengganti/restart controller untuk meneruskan build setelah instalasi langsung di atas.
+
 Untuk setup tugas ini, gunakan **Built-In Node** di container `jenkins-server`, beri label **team-portfolio**, dan pastikan minimal satu executor aktif. Parameter job `JENKINS_CONTAINER` dibiarkan `jenkins-server`. Jenkinsfile memeriksa mount home dengan `docker inspect`, lalu memakai sumber path pada Docker host untuk container tes dan bind mount deployment. Path seperti `/var/jenkins_home/workspace/...` tidak langsung dipakai sebagai bind source karena path itu milik container controller.
 
 Agent harus bisa menjalankan `git`, `docker info`, dan `docker compose version`. Python dan Node untuk tes disediakan lewat container; tidak wajib di-install pada executor. Jika kelak beralih ke agent native Windows/Linux pada host Docker yang sama, kosongkan parameter `JENKINS_CONTAINER`; pipeline memakai path workspace native.
@@ -73,6 +87,24 @@ Setelah tes/build berhasil, pipeline menyalin frontend, backend, Nginx, dan Comp
 ## 4. GitHub Webhook
 
 GitHub tidak bisa menghubungi `localhost:8081` pada laptop. Diperlukan URL HTTPS yang dapat dijangkau GitHub, melalui host yang tersedia atau reverse proxy/tunnel milik tim. Tujuan akhir webhook adalah endpoint Jenkins **`/github-webhook/`**, dengan slash penutup. Jangan memasukkan URL aplikasi pada port 8082.
+
+Cloudflared tersedia pada laptop pengguna. Untuk demo, jalankan proxy dengan akses hanya ke webhook di terminal pertama:
+
+```powershell
+python -B tools/webhook_proxy.py
+```
+
+Di terminal kedua:
+
+```powershell
+cloudflared tunnel --url http://127.0.0.1:8090
+```
+
+Cloudflare akan mencetak URL HTTPS `*.trycloudflare.com`. Tambahkan `/github-webhook/` untuk Payload URL di GitHub. Biarkan kedua terminal hidup selama pengujian dan rekaman. Tunnel sementara dapat memperoleh URL baru saat dijalankan ulang. Proxy meneruskan POST JSON untuk event `ping` dan `push`, mempertahankan body/signature, dan menolak dashboard/login/endpoint lain. Ini bukan pengganti validasi webhook Jenkins.
+
+Jika secret webhook diaktifkan, isi secret yang sama di GitHub dan konfigurasi GitHub plugin Jenkins sebelum menguji delivery. Jangan menambahkan autentikasi Cloudflare berbasis login/email pada endpoint webhook karena GitHub harus dapat mengirim request langsung.
+
+Referensi: [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), [GitHub: Creating webhooks](https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks).
 
 Jika memakai proxy/tunnel untuk demo, batasi routing publik ke endpoint webhook dan pertahankan autentikasi dashboard Jenkins. Catat URL aktif karena URL tunnel sementara dapat berubah. Konfigurasi secret webhook harus konsisten dengan konfigurasi GitHub plugin jika dipakai; jangan commit secret.
 

@@ -61,6 +61,7 @@ pipeline {
                 script {
                     def mount = "type=bind,source=${env.DOCKER_WORKSPACE},target=/workspace,readonly"
                     runCommand('docker info')
+                    runCommand('docker compose version')
                     runCommand('docker compose config --quiet')
                     runCommand("docker run --rm --mount \"${mount}\" --workdir /workspace python:3.12-slim python -B -m unittest discover -s tests -v")
                     runCommand("docker run --rm --mount \"${mount}\" --workdir /workspace node:22-alpine node --check frontend/js/api.js")

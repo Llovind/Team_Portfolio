@@ -98,6 +98,6 @@ Ikuti [JENKINS.md](docs/JENKINS.md) untuk agent, credentials, Pipeline from SCM,
 
 Panduan rekaman dan bukti penilaian ada di [DEMO.md](docs/DEMO.md). URL video demo: **belum direkam/ditambahkan**. Repository pengumpulan: https://github.com/Llovind/Team_Portfolio.
 
-Status verifikasi: **17 tes backend/release dan 15 tes frontend lulus**. Uji Docker dari PowerShell lokal berhasil, termasuk Nginx/API, named volume, custom bridge, bind mount, persistence profil/foto setelah backend dihapus dan dibuat ulang, serta fetch GitHub sungguhan. Resource uji dibersihkan dengan exit code 0. Ringkasan bukti: [VERIFICATION.md](docs/VERIFICATION.md).
+Status verifikasi: build manual Jenkins **#3 berhasil**, dengan **22 tes Python dan 15 tes frontend lulus**, lima stage selesai, dan kedua layanan healthy. Uji Docker dari PowerShell lokal juga berhasil, termasuk Nginx/API, named volume, custom bridge, bind mount, persistence profil/foto setelah backend dihapus dan dibuat ulang, serta fetch GitHub sungguhan. Resource uji dibersihkan dengan exit code 0. Ringkasan bukti: [VERIFICATION.md](docs/VERIFICATION.md).
 
-Jenkinsfile dan panduan webhook sudah disiapkan; pipeline Jenkins dan webhook **belum dijalankan/diaktifkan**. Video demo juga belum direkam. Environment agent tidak dapat mengakses socket Docker atau push GitHub; pengujian Docker di atas dijalankan lewat PowerShell lokal pengguna.
+Pipeline manual sudah terverifikasi. **Auto-trigger webhook dan video demo masih belum selesai**. Environment agent tidak dapat mengakses socket Docker atau push GitHub; eksekusi Docker/Jenkins di atas dilakukan pada environment lokal pengguna.
